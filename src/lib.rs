@@ -1160,7 +1160,7 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app: &tauri::AppHandle, event: tauri::RunEvent| {
             if let tauri::RunEvent::ExitRequested { .. } = event {
-                if let Some(window) = app.get_webview_window("main") {
+                if let Some(_window) = app.get_webview_window("main") {
                     let state = app.state::<AppState>();
                     let geo = state.geometry.lock().unwrap();
                     let mut settings = load_settings();
