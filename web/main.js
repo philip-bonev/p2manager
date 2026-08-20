@@ -1,6 +1,7 @@
 import { t, tp, applyStatic } from "/i18n.js";
 
 const { invoke } = window.__TAURI__.core;
+const { open: openDialog } = window.__TAURI__.dialog;
 const { getCurrentWindow } = window.__TAURI__.window;
 
 applyStatic();
@@ -963,7 +964,7 @@ function commandModal() {
 
 let favKeyHandler = null;
 
-function favoritesModal() {
+function favModal(opts) {
   return new Promise((resolve) => {
     if (favKeyHandler) modalEl.removeEventListener("keydown", favKeyHandler);
     favKeyHandler = (ev) => {
@@ -977,36 +978,33 @@ function favoritesModal() {
     modalEl.addEventListener("keydown", favKeyHandler);
 
     lastFocused = document.activeElement;
-    modalTitle.textContent = t("fav.title");
+    modalTitle.textContent = opts.title;
 
-    let favorites = [];
+    let items = [];
     let sel = 0;
     let loading = true;
     let list = null;
 
     const choose = (i) => {
-      if (!favorites[i]) return;
+      if (!items[i]) return;
       closeModal();
-      resolve(favorites[i]);
+      resolve(items[i]);
     };
 
     const save = async (next) => {
-      favorites = next;
-      sel = Math.min(sel, Math.max(0, favorites.length - 1));
+      items = next;
+      sel = Math.min(sel, Math.max(0, items.length - 1));
       try {
-        await invoke("set_favorites", { favorites });
+        await opts.save(items);
       } catch (err) {
         alertModal(t("err.title"), String(err));
       }
     };
 
     const updateSel = () => {
-      const items = list ? list.children : [];
-      for (let i = 0; i < items.length; i++) {
-        items[i].classList.toggle(
-          "selected",
-          i === sel && i < favorites.length
-        );
+      const els = list ? list.children : [];
+      for (let i = 0; i < els.length; i++) {
+        els[i].classList.toggle("selected", i === sel && i < items.length);
       }
     };
 
@@ -1018,8 +1016,8 @@ function favoritesModal() {
       modalBody.appendChild(list);
 
       if (!loading) {
-        if (sel >= favorites.length) sel = Math.max(0, favorites.length - 1);
-        favorites.forEach((path, i) => {
+        if (sel >= items.length) sel = Math.max(0, items.length - 1);
+        items.forEach((path, i) => {
           const li = document.createElement("li");
           li.textContent = path;
           li.addEventListener("mousedown", (ev) => {
@@ -1033,10 +1031,10 @@ function favoritesModal() {
           });
           list.appendChild(li);
         });
-        if (favorites.length === 0) {
+        if (items.length === 0) {
           const empty = document.createElement("li");
           empty.className = "empty";
-          empty.textContent = t("fav.empty");
+          empty.textContent = opts.empty;
           list.appendChild(empty);
         }
       }
@@ -1051,7 +1049,7 @@ function favoritesModal() {
         if (ev.key === "ArrowDown") {
           ev.preventDefault();
           ev.stopPropagation();
-          sel = Math.min(favorites.length - 1, sel + 1);
+          sel = Math.min(items.length - 1, sel + 1);
           updateSel();
         } else if (ev.key === "ArrowUp") {
           ev.preventDefault();
@@ -1061,7 +1059,7 @@ function favoritesModal() {
         } else if (ev.key === "PageDown") {
           ev.preventDefault();
           ev.stopPropagation();
-          sel = Math.min(favorites.length - 1, sel + pageStep());
+          sel = Math.min(items.length - 1, sel + pageStep());
           updateSel();
         } else if (ev.key === "PageUp") {
           ev.preventDefault();
@@ -1076,7 +1074,7 @@ function favoritesModal() {
         } else if (ev.key === "End") {
           ev.preventDefault();
           ev.stopPropagation();
-          sel = Math.max(0, favorites.length - 1);
+          sel = Math.max(0, items.length - 1);
           updateSel();
         } else if (ev.key === "Enter") {
           ev.preventDefault();
@@ -1117,27 +1115,24 @@ function favoritesModal() {
       };
 
       mkBtn(t("fav.add"), "", async () => {
-        const cur = state[activeSide].path || "";
-        const value = await promptModal(t("fav.addTitle"), t("fav.addPrompt"), cur);
-        if (value === null) return;
-        const path = value.trim();
-        if (!path) return;
-        if (!favorites.includes(path)) await save([...favorites, path]);
+        const value = await opts.add();
+        if (!value) return;
+        if (!items.includes(value)) await save([...items, value]);
       });
       mkBtn(t("fav.remove"), "", async () => {
-        if (favorites.length === 0) return;
-        await save(favorites.filter((_, i) => i !== sel));
+        if (items.length === 0) return;
+        await save(items.filter((_, i) => i !== sel));
       });
       mkBtn(t("fav.up"), "", async () => {
         if (sel <= 0) return;
-        const next = [...favorites];
+        const next = [...items];
         [next[sel - 1], next[sel]] = [next[sel], next[sel - 1]];
         sel -= 1;
         await save(next);
       });
       mkBtn(t("fav.down"), "", async () => {
-        if (sel < 0 || sel >= favorites.length - 1) return;
-        const next = [...favorites];
+        if (sel < 0 || sel >= items.length - 1) return;
+        const next = [...items];
         [next[sel + 1], next[sel]] = [next[sel], next[sel + 1]];
         sel += 1;
         await save(next);
@@ -1155,9 +1150,9 @@ function favoritesModal() {
       list.focus();
     };
 
-    invoke("get_favorites")
-      .then((favs) => {
-        favorites = Array.isArray(favs) ? favs : [];
+    opts.load()
+      .then((data) => {
+        items = Array.isArray(data) ? data : [];
         loading = false;
         render();
       })
@@ -1167,6 +1162,33 @@ function favoritesModal() {
         alertModal(t("err.title"), String(err));
         resolve(null);
       });
+  });
+}
+
+function favoritesModal() {
+  return favModal({
+    title: t("fav.title"),
+    empty: t("fav.empty"),
+    load: () => invoke("get_favorites"),
+    save: (list) => invoke("set_favorites", { favorites: list }),
+    add: async () => {
+      const cur = state[activeSide].path || "";
+      const value = await promptModal(t("fav.addTitle"), t("fav.addPrompt"), cur);
+      return value === null ? null : value.trim();
+    },
+  });
+}
+
+function favAppsModal() {
+  return favModal({
+    title: t("fav.apps"),
+    empty: t("fav.appsEmpty"),
+    load: () => invoke("get_fav_apps"),
+    save: (list) => invoke("set_fav_apps", { favApps: list }),
+    add: async () => {
+      const picked = await openDialog({ multiple: false, title: t("dialog.pickApp") }).catch(() => null);
+      return picked ? (Array.isArray(picked) ? picked[0] : picked) : null;
+    },
   });
 }
 
@@ -1373,6 +1395,22 @@ document.addEventListener("keydown", (ev) => {
     ev.preventDefault();
     favoritesModal().then((p) => {
       if (p) loadDir(activeSide, p);
+    });
+    return;
+  }
+  if (ev.ctrlKey && ev.key.toLowerCase() === "a") {
+    ev.preventDefault();
+    favAppsModal().then((appPath) => {
+      if (!appPath) return;
+      const row = selectedRow(activeSide);
+      const file = row && row.kind !== "parent" ? selectedPath(activeSide) : "";
+      const q = (p) => (/[\s"']/.test(p) ? `"${p.replace(/"/g, '\\"')}"` : p);
+      const command = file ? `${q(appPath)} ${q(file)}` : appPath;
+      invoke("run_command", {
+        command,
+        inTerminal: false,
+        cwd: state[activeSide].path || "",
+      }).catch((err) => alertModal(t("err.title"), String(err)));
     });
     return;
   }
