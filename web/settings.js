@@ -2,6 +2,34 @@ import { t, applyStatic } from "/i18n.js";
 
 const { invoke } = window.__TAURI__.core;
 const { open: openDialog } = window.__TAURI__.dialog;
+const { getCurrentWindow, PhysicalSize } = window.__TAURI__.window;
+
+document.documentElement.classList.add("settings-root");
+
+const appWindow = getCurrentWindow();
+let fitDebounce = null;
+
+async function fitWindow() {
+  try {
+    const contentW = document.documentElement.scrollWidth;
+    const inner = await appWindow.innerSize();
+    const outer = await appWindow.outerSize();
+    const borderW = Math.max(0, outer.width - inner.width);
+    const scale = window.devicePixelRatio || 1;
+    const size = await appWindow.size();
+    await appWindow.setSize(
+      new PhysicalSize(
+        Math.max(360, Math.ceil(contentW * scale + borderW)),
+        size.height
+      )
+    );
+  } catch {}
+}
+
+function scheduleFit() {
+  clearTimeout(fitDebounce);
+  fitDebounce = setTimeout(fitWindow, 100);
+}
 
 const SIZES = [10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 28];
 
@@ -35,6 +63,7 @@ function applyAppearance(appearance) {
   rootEl.classList.toggle("theme-light", appearance.theme === "light");
   rootEl.style.setProperty("--font", FONT_MAP[appearance.font] || FONT_MAP.default);
   rootEl.style.setProperty("--font-size", `${appearance.fontSize}px`);
+  scheduleFit();
 }
 
 function setControlValue(appearance) {

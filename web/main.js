@@ -57,8 +57,8 @@ async function syncAppearance() {
 }
 
 const state = {
-  left: { path: null, parent: null, items: [], selected: 0 },
-  right: { path: null, parent: null, items: [], selected: 0 },
+  left: { path: null, parent: null, items: [], selected: 0, marked: new Set() },
+  right: { path: null, parent: null, items: [], selected: 0, marked: new Set() },
 };
 let activeSide = "left";
 let fuzzyPref = false;
@@ -129,6 +129,7 @@ async function loadDir(side, path) {
     s.parent = listing.parent ?? null;
     s.items = listing.items;
     s.selected = 0;
+    s.marked = new Set();
     render(side);
     heads[side].textContent = listing.path;
   } catch (err) {
@@ -154,6 +155,9 @@ function render(side) {
 
     if (row.kind === "parent") {
       li.classList.add("parent");
+      const mark = document.createElement("span");
+      mark.className = "mark";
+      li.appendChild(mark);
       const name = document.createElement("span");
       name.className = "name";
       name.textContent = "..";
@@ -165,6 +169,11 @@ function render(side) {
     } else {
       const e = row.entry;
       if (e.isDir) li.classList.add("dir");
+      if (s.marked.has(idx)) li.classList.add("marked");
+      const mark = document.createElement("span");
+      mark.className = "mark";
+      mark.textContent = s.marked.has(idx) ? "*" : "";
+      li.appendChild(mark);
       const name = document.createElement("span");
       name.className = "name";
       name.textContent = e.name;
@@ -215,6 +224,79 @@ function select(side, idx) {
 
 function listItems(side) {
   return Array.from(lists[side].children);
+}
+
+function toggleMark(side, idx) {
+  const s = state[side];
+  const rows = s.rows || [];
+  const row = rows[idx];
+  if (!row || row.kind === "parent") return;
+  if (s.marked.has(idx)) s.marked.delete(idx);
+  else s.marked.add(idx);
+  const li = listItems(side)[idx];
+  if (li) {
+    li.classList.toggle("marked", s.marked.has(idx));
+    const mark = li.querySelector(".mark");
+    if (mark) mark.textContent = li.classList.contains("marked") ? "*" : "";
+  }
+  updateStatus();
+}
+
+function markByPattern(side, pattern, mark) {
+  const s = state[side];
+  const rows = s.rows || [];
+  let re;
+  try {
+    re = new RegExp(
+      "^" + pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".") + "$",
+      "i"
+    );
+  } catch {
+    return 0;
+  }
+  let count = 0;
+  rows.forEach((row, i) => {
+    if (row.kind === "parent") return;
+    if (re.test(row.entry.name)) {
+      if (mark) s.marked.add(i);
+      else s.marked.delete(i);
+      count++;
+    }
+  });
+  return count;
+}
+
+function invertMarks(side) {
+  const s = state[side];
+  const rows = s.rows || [];
+  const newSet = new Set();
+  rows.forEach((row, i) => {
+    if (row.kind === "parent") return;
+    if (!s.marked.has(i)) newSet.add(i);
+  });
+  s.marked = newSet;
+  render(side);
+}
+
+async function markPatternModal(mark) {
+  const pattern = await promptModal(
+    mark ? t("mark.titleMark") : t("mark.titleUnmark"),
+    mark ? t("mark.promptMark") : t("mark.promptUnmark")
+  );
+  if (pattern === null) return;
+  if (pattern.trim() === "") {
+    const s = state[activeSide];
+    const rows = s.rows || [];
+    rows.forEach((row, i) => {
+      if (row.kind === "parent") return;
+      if (mark) s.marked.add(i);
+      else s.marked.delete(i);
+    });
+    render(activeSide);
+    return;
+  }
+  markByPattern(activeSide, pattern, mark);
+  render(activeSide);
 }
 
 function setActiveSide(side) {
@@ -351,17 +433,27 @@ function pageStep(side) {
 
 async function copyOrMove(op) {
   const side = activeSide;
-  const row = selectedRow(side);
-  if (!row) {
+  const s = state[side];
+  const rows = s.rows || [];
+  const markedIdx = [...s.marked]
+    .filter((i) => rows[i] && rows[i].kind === "item")
+    .sort((a, b) => a - b);
+  let targets = [];
+  if (markedIdx.length > 0) {
+    targets = markedIdx.map((i) => ({
+      row: rows[i],
+      path: `${s.path.replace(/\/$/, "")}/${rows[i].entry.name}`,
+    }));
+  } else {
+    const row = selectedRow(side);
+    if (row && row.kind !== "parent") {
+      targets = [{ row, path: selectedPath(side) }];
+    }
+  }
+  if (targets.length === 0) {
     alertModal(t("err.title"), t("err.noSelection"));
     return;
   }
-  if (row.kind === "parent") {
-    alertModal(t("err.title"), t("err.notParent"));
-    return;
-  }
-  const src = selectedPath(side);
-  if (!src) return;
   const other = getOther();
   if (!other.path) {
     alertModal(t("err.title"), t("err.noOtherDir"));
@@ -375,29 +467,35 @@ async function copyOrMove(op) {
           { id: "soft", label: t("link.soft"), checked: false },
         ]
       : [];
+  const name =
+    targets.length === 1
+      ? targets[0].row.entry.name
+      : t("copyMove.multi", { count: targets.length });
   const res = await confirmModal(
     verb,
     t("copyMove.confirm", {
       verb,
-      name: row.entry.name,
-      src: state[side].path,
+      name,
+      src: s.path,
       dst: other.path,
     }),
     checkboxes
   );
   if (!res.ok) return;
   try {
-    if (op === "copy" && (res.values.hard || res.values.soft)) {
-      await invoke("link_path", {
-        src,
-        dstDir: other.path,
-        hard: !!res.values.hard,
-      });
-    } else {
-      await invoke(op === "copy" ? "copy_path" : "move_path", {
-        src,
-        dstDir: other.path,
-      });
+    for (const t of targets) {
+      if (op === "copy" && (res.values.hard || res.values.soft)) {
+        await invoke("link_path", {
+          src: t.path,
+          dstDir: other.path,
+          hard: !!res.values.hard,
+        });
+      } else {
+        await invoke(op === "copy" ? "copy_path" : "move_path", {
+          src: t.path,
+          dstDir: other.path,
+        });
+      }
     }
     refresh(side);
     refresh(activeSide === "left" ? "right" : "left");
@@ -408,18 +506,34 @@ async function copyOrMove(op) {
 
 async function deleteSelected() {
   const side = activeSide;
-  const row = selectedRow(side);
-  if (!row) {
-    alertModal(t("err.title"), t("err.noSelection"));
-    return;
+  const s = state[side];
+  const rows = s.rows || [];
+  const markedIdx = [...s.marked]
+    .filter((i) => rows[i] && rows[i].kind === "item")
+    .sort((a, b) => a - b);
+  let targets = [];
+  if (markedIdx.length > 0) {
+    targets = markedIdx.map((i) => ({
+      row: rows[i],
+      path: `${s.path.replace(/\/$/, "")}/${rows[i].entry.name}`,
+    }));
+  } else {
+    const row = selectedRow(side);
+    if (row && row.kind !== "parent") {
+      targets = [{ row, path: selectedPath(side) }];
+    }
   }
-  if (row.kind === "parent") return;
-  const src = selectedPath(side);
-  const name = row.entry.name;
+  if (targets.length === 0) return;
+  const name =
+    targets.length === 1
+      ? targets[0].row.entry.name
+      : t("copyMove.multi", { count: targets.length });
   const res = await confirmModal(t("delete.title"), t("delete.confirm", { name }));
   if (!res.ok) return;
   try {
-    await invoke("delete_path", { path: src });
+    for (const t of targets) {
+      await invoke("delete_path", { path: t.path });
+    }
     refresh(side);
   } catch (err) {
     alertModal(t("err.title"), String(err));
@@ -738,6 +852,10 @@ function promptModal(title, label) {
     modalBody.appendChild(p);
     const input = document.createElement("input");
     input.type = "text";
+    input.autocomplete = "off";
+    input.autocorrect = "off";
+    input.autocapitalize = "off";
+    input.spellcheck = false;
     modalBody.appendChild(input);
     modalActions.innerHTML = "";
 
@@ -764,12 +882,14 @@ function promptModal(title, label) {
     input.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") {
         ev.preventDefault();
+        ev.stopPropagation();
         const value = input.value;
         closeModal();
         resolve(value);
       }
       if (ev.key === "Escape") {
         ev.preventDefault();
+        ev.stopPropagation();
         closeModal();
         resolve(null);
       }
@@ -825,12 +945,14 @@ function commandModal() {
     input.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") {
         ev.preventDefault();
+        ev.stopPropagation();
         const value = input.value;
         closeModal();
         resolve({ command: value, inTerminal: term.checked });
       }
       if (ev.key === "Escape") {
         ev.preventDefault();
+        ev.stopPropagation();
         closeModal();
         resolve(null);
       }
@@ -841,6 +963,32 @@ function commandModal() {
 async function runCommandModal() {
   const res = await commandModal();
   if (!res || !res.command.trim()) return;
+  const trimmed = res.command.trim();
+  const cdMatch = trimmed.match(/^cd(?:\s+(.*))?$/);
+  if (cdMatch) {
+    let target = (cdMatch[1] || "").trim();
+    if (target) {
+      if (
+        (target.startsWith('"') && target.endsWith('"')) ||
+        (target.startsWith("'") && target.endsWith("'"))
+      ) {
+        target = target.slice(1, -1);
+      }
+      if (target) {
+        const base = state[activeSide].path || "";
+        const isWindows = base.includes("\\");
+        const full = isWindows
+          ? /^[A-Za-z]:/.test(target)
+            ? target
+            : `${base.replace(/\\$/, "")}\\${target}`
+          : target.startsWith("/")
+            ? target
+            : `${base.replace(/\/$/, "")}/${target}`;
+        await loadDir(activeSide, full);
+      }
+    }
+    return;
+  }
   try {
     await invoke("run_command", {
       command: res.command,
@@ -916,6 +1064,7 @@ function openSearch(initial) {
   input.addEventListener("keydown", (ev) => {
     if (ev.key === "Escape" || ev.key === "Enter") {
       ev.preventDefault();
+      ev.stopPropagation();
       closeModal();
     }
   });
@@ -1055,6 +1204,22 @@ document.addEventListener("keydown", (ev) => {
     case "Delete":
       ev.preventDefault();
       deleteSelected();
+      break;
+    case " ":
+      ev.preventDefault();
+      toggleMark(side, state[side].selected);
+      break;
+    case "+":
+      ev.preventDefault();
+      markPatternModal(true);
+      break;
+    case "-":
+      ev.preventDefault();
+      markPatternModal(false);
+      break;
+    case "*":
+      ev.preventDefault();
+      invertMarks(side);
       break;
     default:
       if (/^F(1[0-2]|[1-9])$/.test(ev.key)) {

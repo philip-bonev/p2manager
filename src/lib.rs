@@ -842,8 +842,8 @@ fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
     }
     tauri::WebviewWindowBuilder::new(&app, "settings", tauri::WebviewUrl::App("settings.html".into()))
         .title("Настройки")
-        .inner_size(420.0, 680.0)
-        .min_inner_size(360.0, 600.0)
+        .inner_size(360.0, 620.0)
+        .resizable(false)
         .build()
         .map_err(|e| format!("Грешка при отваряне на настройките: {}", e))?;
     Ok(())

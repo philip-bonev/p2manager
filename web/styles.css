@@ -13,6 +13,7 @@
   --head-inactive: #f0f0f0;
   --selected-bg: #cce4ff;
   --selected-text: #1f1f1f;
+  --marked-bg: #fff3b8;
   --toolbar-bg: #f3f3f3;
   --toolbar-text: #1f1f1f;
   --btn-bg: #ffffff;
@@ -51,6 +52,7 @@
     --head-inactive: #2c2c2c;
     --selected-bg: #264f78;
     --selected-text: #ffffff;
+    --marked-bg: #4d4d2b;
     --toolbar-bg: #333333;
     --toolbar-text: #e8e8e8;
     --btn-bg: #3a3a3a;
@@ -89,6 +91,7 @@
   --head-inactive: #f0f0f0;
   --selected-bg: #cce4ff;
   --selected-text: #1f1f1f;
+  --marked-bg: #fff3b8;
   --toolbar-bg: #f3f3f3;
   --toolbar-text: #1f1f1f;
   --btn-bg: #ffffff;
@@ -266,13 +269,22 @@ body {
   cursor: default;
 }
 
+.panel-list li .name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .panel-list li .size {
+  flex: 0 0 auto;
   margin-left: auto;
   text-align: right;
   color: var(--dim);
 }
 
 .panel-list li .date {
+  flex: 0 0 auto;
   color: var(--dim);
   min-width: 80px;
   text-align: right;
@@ -284,6 +296,21 @@ body {
 
 .panel-list li.dir .name::after {
   content: "/";
+}
+
+.panel-list li .mark {
+  flex: 0 0 1.4em;
+  text-align: center;
+  color: var(--dim);
+}
+
+.panel-list li.marked {
+  background: var(--marked-bg);
+}
+
+.panel-list li.marked .name {
+  color: var(--text);
+  font-weight: bold;
 }
 
 .panel-list li.selected {
@@ -552,6 +579,10 @@ body {
   overflow-y: auto;
 }
 
+html.settings-root {
+  overflow-y: auto;
+}
+
 .settings-page h1 {
   font-size: calc(var(--font-size, 14px) + 2px);
   color: var(--text);
@@ -597,7 +628,8 @@ body {
 .settings-page input[type="text"] {
   font-family: inherit;
   font-size: var(--font-size, 14px);
-  flex: 1;
+  width: 260px;
+  min-width: 260px;
   padding: 4px 8px;
   margin-left: 10px;
   border: 1px solid var(--modal-border);
@@ -615,6 +647,7 @@ body {
 .settings-page .row button {
   font-family: inherit;
   font-size: var(--font-size, 14px);
+  flex: 0 0 auto;
   margin-left: 8px;
   padding: 4px 10px;
   border: 1px solid var(--modal-border);
@@ -633,4 +666,9 @@ body {
   align-items: center;
   padding: 4px 10px;
   color: var(--text);
+  flex-wrap: wrap;
+}
+
+.settings-page .row label {
+  white-space: nowrap;
 }
