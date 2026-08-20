@@ -842,7 +842,7 @@ function confirmModal(title, message, checkboxes) {
   });
 }
 
-function promptModal(title, label) {
+function promptModal(title, label, initial) {
   return new Promise((resolve) => {
     lastFocused = document.activeElement;
     modalTitle.textContent = title;
@@ -856,6 +856,7 @@ function promptModal(title, label) {
     input.autocorrect = "off";
     input.autocapitalize = "off";
     input.spellcheck = false;
+    input.value = initial ?? "";
     modalBody.appendChild(input);
     modalActions.innerHTML = "";
 
@@ -957,6 +958,215 @@ function commandModal() {
         resolve(null);
       }
     });
+  });
+}
+
+let favKeyHandler = null;
+
+function favoritesModal() {
+  return new Promise((resolve) => {
+    if (favKeyHandler) modalEl.removeEventListener("keydown", favKeyHandler);
+    favKeyHandler = (ev) => {
+      if (ev.key === "Escape") {
+        ev.preventDefault();
+        ev.stopPropagation();
+        closeModal();
+        resolve(null);
+      }
+    };
+    modalEl.addEventListener("keydown", favKeyHandler);
+
+    lastFocused = document.activeElement;
+    modalTitle.textContent = t("fav.title");
+
+    let favorites = [];
+    let sel = 0;
+    let loading = true;
+    let list = null;
+
+    const choose = (i) => {
+      if (!favorites[i]) return;
+      closeModal();
+      resolve(favorites[i]);
+    };
+
+    const save = async (next) => {
+      favorites = next;
+      sel = Math.min(sel, Math.max(0, favorites.length - 1));
+      try {
+        await invoke("set_favorites", { favorites });
+      } catch (err) {
+        alertModal(t("err.title"), String(err));
+      }
+    };
+
+    const updateSel = () => {
+      const items = list ? list.children : [];
+      for (let i = 0; i < items.length; i++) {
+        items[i].classList.toggle(
+          "selected",
+          i === sel && i < favorites.length
+        );
+      }
+    };
+
+    const render = () => {
+      modalBody.innerHTML = "";
+      list = document.createElement("ul");
+      list.className = "fav-list";
+      list.setAttribute("tabindex", "-1");
+      modalBody.appendChild(list);
+
+      if (!loading) {
+        if (sel >= favorites.length) sel = Math.max(0, favorites.length - 1);
+        favorites.forEach((path, i) => {
+          const li = document.createElement("li");
+          li.textContent = path;
+          li.addEventListener("mousedown", (ev) => {
+            ev.preventDefault();
+            sel = i;
+            updateSel();
+          });
+          li.addEventListener("dblclick", (ev) => {
+            ev.preventDefault();
+            choose(i);
+          });
+          list.appendChild(li);
+        });
+        if (favorites.length === 0) {
+          const empty = document.createElement("li");
+          empty.className = "empty";
+          empty.textContent = t("fav.empty");
+          list.appendChild(empty);
+        }
+      }
+
+      list.addEventListener("keydown", (ev) => {
+        const pageStep = () => {
+          const first = list.firstElementChild;
+          if (!first) return 1;
+          const rowH = first.getBoundingClientRect().height || 20;
+          return Math.max(1, Math.floor(list.clientHeight / rowH));
+        };
+        if (ev.key === "ArrowDown") {
+          ev.preventDefault();
+          ev.stopPropagation();
+          sel = Math.min(favorites.length - 1, sel + 1);
+          updateSel();
+        } else if (ev.key === "ArrowUp") {
+          ev.preventDefault();
+          ev.stopPropagation();
+          sel = Math.max(0, sel - 1);
+          updateSel();
+        } else if (ev.key === "PageDown") {
+          ev.preventDefault();
+          ev.stopPropagation();
+          sel = Math.min(favorites.length - 1, sel + pageStep());
+          updateSel();
+        } else if (ev.key === "PageUp") {
+          ev.preventDefault();
+          ev.stopPropagation();
+          sel = Math.max(0, sel - pageStep());
+          updateSel();
+        } else if (ev.key === "Home") {
+          ev.preventDefault();
+          ev.stopPropagation();
+          sel = 0;
+          updateSel();
+        } else if (ev.key === "End") {
+          ev.preventDefault();
+          ev.stopPropagation();
+          sel = Math.max(0, favorites.length - 1);
+          updateSel();
+        } else if (ev.key === "Enter") {
+          ev.preventDefault();
+          ev.stopPropagation();
+          choose(sel);
+        } else if (ev.key === "Escape") {
+          ev.preventDefault();
+          ev.stopPropagation();
+          closeModal();
+          resolve(null);
+        }
+      });
+
+      modalActions.innerHTML = "";
+      const mkBtn = (label, cls, handler, noRender) => {
+        const b = document.createElement("button");
+        b.textContent = label;
+        if (cls) b.className = cls;
+        let mouse = false;
+        const run = async () => {
+          await handler();
+          if (!noRender) render();
+        };
+        b.addEventListener("mousedown", (ev) => {
+          ev.preventDefault();
+          mouse = true;
+          run();
+        });
+        b.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          if (mouse) {
+            mouse = false;
+            return;
+          }
+          run();
+        });
+        modalActions.appendChild(b);
+      };
+
+      mkBtn(t("fav.add"), "", async () => {
+        const cur = state[activeSide].path || "";
+        const value = await promptModal(t("fav.addTitle"), t("fav.addPrompt"), cur);
+        if (value === null) return;
+        const path = value.trim();
+        if (!path) return;
+        if (!favorites.includes(path)) await save([...favorites, path]);
+      });
+      mkBtn(t("fav.remove"), "", async () => {
+        if (favorites.length === 0) return;
+        await save(favorites.filter((_, i) => i !== sel));
+      });
+      mkBtn(t("fav.up"), "", async () => {
+        if (sel <= 0) return;
+        const next = [...favorites];
+        [next[sel - 1], next[sel]] = [next[sel], next[sel - 1]];
+        sel -= 1;
+        await save(next);
+      });
+      mkBtn(t("fav.down"), "", async () => {
+        if (sel < 0 || sel >= favorites.length - 1) return;
+        const next = [...favorites];
+        [next[sel + 1], next[sel]] = [next[sel], next[sel + 1]];
+        sel += 1;
+        await save(next);
+      });
+      mkBtn(t("btn.ok"), "primary", () => {
+        choose(sel);
+      }, true);
+      mkBtn(t("btn.close"), "", () => {
+        closeModal();
+        resolve(null);
+      }, true);
+
+      updateSel();
+      overlay.classList.add("open");
+      list.focus();
+    };
+
+    invoke("get_favorites")
+      .then((favs) => {
+        favorites = Array.isArray(favs) ? favs : [];
+        loading = false;
+        render();
+      })
+      .catch((err) => {
+        loading = false;
+        closeModal();
+        alertModal(t("err.title"), String(err));
+        resolve(null);
+      });
   });
 }
 
@@ -1157,6 +1367,13 @@ document.addEventListener("keydown", (ev) => {
   if (ev.ctrlKey && ev.key === "ArrowDown") {
     ev.preventDefault();
     runCommandModal();
+    return;
+  }
+  if (ev.ctrlKey && ev.key.toLowerCase() === "d") {
+    ev.preventDefault();
+    favoritesModal().then((p) => {
+      if (p) loadDir(activeSide, p);
+    });
     return;
   }
   if (ev.ctrlKey && ev.key === "PageDown") {

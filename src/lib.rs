@@ -49,6 +49,7 @@ struct AppSettings {
     diff_in_terminal: bool,
     edit_command: String,
     edit_in_terminal: bool,
+    favorites: Vec<String>,
     width: Option<u32>,
     height: Option<u32>,
     x: Option<i32>,
@@ -65,6 +66,7 @@ impl Default for AppSettings {
             diff_in_terminal: false,
             edit_command: String::new(),
             edit_in_terminal: false,
+            favorites: Vec::new(),
             width: None,
             height: None,
             x: None,
@@ -559,6 +561,20 @@ fn set_diff_in_terminal(in_terminal: bool, app: tauri::AppHandle) -> Result<AppS
     Ok(settings)
 }
 
+#[tauri::command]
+fn get_favorites() -> Result<Vec<String>, String> {
+    Ok(load_settings().favorites)
+}
+
+#[tauri::command]
+fn set_favorites(favorites: Vec<String>, app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let mut settings = load_settings();
+    settings.favorites = favorites;
+    save_settings(&settings)?;
+    let _ = app.emit("appearance-changed", ());
+    Ok(settings.favorites)
+}
+
 fn quote_shell(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
@@ -753,6 +769,14 @@ fn app_binary(app_path: &str) -> Option<String> {
 }
 
 fn launch(mut cmd: std::process::Command, in_terminal: bool, cwd: Option<&Path>) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let homebrew = "/opt/homebrew/bin";
+        let current = std::env::var("PATH").unwrap_or_default();
+        if !current.split(':').any(|p| p == homebrew) {
+            cmd.env("PATH", format!("{}:{}", homebrew, current));
+        }
+    }
     if in_terminal {
         return run_in_terminal(cmd, cwd);
     }
@@ -909,6 +933,8 @@ pub fn run() {
             set_diff_in_terminal,
             set_edit_command,
             set_edit_in_terminal,
+            get_favorites,
+            set_favorites,
             open_settings
         ])
         .build(tauri::generate_context!())
