@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="bg">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Panel Manager</title>
+    <script type="module" src="/settings.js" defer></script>
+  </head>
+  <body class="settings-page">
+    <h1 data-i18n="settings.title">Настройки</h1>
+
+    <h2 data-i18n="settings.theme">Тема</h2>
+    <label class="opt">
+      <input type="radio" name="theme" value="system" />
+      <span data-i18n="theme.system">Следвай системата</span>
+    </label>
+    <label class="opt">
+      <input type="radio" name="theme" value="light" />
+      <span data-i18n="theme.light">Светла</span>
+    </label>
+    <label class="opt">
+      <input type="radio" name="theme" value="dark" />
+      <span data-i18n="theme.dark">Тъмна</span>
+    </label>
+
+    <h2 data-i18n="settings.font">Шрифт</h2>
+    <div class="row">
+      <label for="font" data-i18n="settings.fontFamily">Семейство:</label>
+      <select id="font">
+        <option value="default" data-i18n="font.default">Системен</option>
+        <option value="monospace" data-i18n="font.monospace">Моноширинен</option>
+        <option value="serif" data-i18n="font.serif">Серифен</option>
+        <option value="sans" data-i18n="font.sans">Без засечки</option>
+      </select>
+    </div>
+
+    <h2 data-i18n="settings.fontSize">Големина на шрифта</h2>
+    <div class="row">
+      <label for="font-size" data-i18n="settings.sizeLabel">Размер:</label>
+      <select id="font-size"></select>
+    </div>
+
+    <h2 data-i18n="settings.diff">Външна програма за сравняване (Diff)</h2>
+    <div class="row">
+      <label for="diff-command" data-i18n="settings.diffCommand">Команда:</label>
+      <input type="text" id="diff-command" placeholder="nvim -d" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+      <button type="button" id="diff-browse" data-i18n="btn.browse">Избор…</button>
+    </div>
+    <div class="hint" data-i18n="settings.diffHint">Празно = вграден diff. %1/%2 = пътища; иначе се добавят накрая.</div>
+    <label class="opt">
+      <input type="checkbox" id="diff-terminal" />
+      <span data-i18n="settings.diffTerminal">Отваряне в конзола</span>
+    </label>
+
+    <h2 data-i18n="settings.edit">Външен редактор (F4)</h2>
+    <div class="row">
+      <label for="edit-command" data-i18n="settings.editCommand">Команда:</label>
+      <input type="text" id="edit-command" placeholder="code -w" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+      <button type="button" id="edit-browse" data-i18n="btn.browse">Избор…</button>
+    </div>
+    <div class="hint" data-i18n="settings.editHint">Празно = системен редактор. %1 = път; иначе се добавя накрая.</div>
+    <label class="opt">
+      <input type="checkbox" id="edit-terminal" />
+      <span data-i18n="settings.editTerminal">Отваряне в конзола</span>
+    </label>
+  </body>
+</html>

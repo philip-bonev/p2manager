@@ -1,4 +1,4 @@
-# Project Context & Rules: Panel Manager 
+# Project Context & Rules: Panel Manager
 
 ## 1. System Prompt & Role
 - **Role:** Expert software engineer specializing in Rust, Tauri, and frontend development. Provide clean, secure, idiomatic code.
@@ -7,17 +7,30 @@
 
 ## 2. Tech Stack & Architecture
 - **Framework:** Tauri v2 (Rust backend + WebView frontend). Rust edition 2024.
-- **Backend:** `/src/lib.rs` (single file, ~1340 lines).
-- **Frontend:** static files in `/web`, served as `frontendDist: "web"`. There is NO npm/package.json — do not run `npm install`; edit files directly.
-- **Config:** `tauri.conf.json`, `capabilities/default.json`, `Cargo.toml`.
+- **Backend:** `/src/lib.rs` (single file, ~630 lines). All Tauri commands live here.
+- **Frontend files in `/web`:**
+  - `index.html`, `main.js` — main window (dual-panel file manager)
+  - `settings.html`, `settings.js` — runtime settings window (theme/font/font-size)
+  - `i18n.js` — bg/en translations + helpers
+  - `styles.css` — themes + layout
+- Served as `frontendDist: "web"`. There is NO npm/package.json — do not run `npm install`; edit files directly.
+- **Config:** `tauri.conf.json` (main window label `"main"`), `capabilities/default.json`, `Cargo.toml`.
 - **Plugins:** opener, dialog, fs, window-state, single-instance, log.
-- **Platform:** Windows, Linux, macOS.
+- **Platform:** Windows, Linux, macOS. Feature differences handled with `#[cfg(...)]` in Rust.
 
 ## 3. Architecture & Data Flow (important)
-- **Settings:** stored as JSON at `~/.p2manager/config.json` (cross-platform via HOME/USERPROFILE). Loaded in `.setup()` into `AppState.settings`.
+- **Settings:** stored as JSON at `~/.p2manager/config.json` (cross-platform via HOME/USERPROFILE). Loaded in `.setup()` into `AppState.settings`. Window geometry (width/height/x/y) is saved on `RunEvent::ExitRequested` and restored in `.setup()`.
 - **Invoke arg naming:** JS passes camelCase keys (e.g. `newSettings`), Rust receives snake_case (`new_settings`) — Tauri maps automatically.
+- **Windows:** main window is created from `tauri.conf.json`; settings window label `"settings"` is opened at runtime via `open_settings`.
+- **Tauri v2 API notes:** `.run(closure)` is on `App` (use `.build(context).expect(...).run(...)`); `RunEvent::ExitRequested{code, api}`; `WindowEvent::Resized(PhysicalSize<u32>)` / `Moved(PhysicalPosition<i32>)`.
 
-## 4. Project Commands
+## 4. Backend Commands (in `src/lib.rs`)
+`list_dir`, `home_dir`, `make_dir`, `delete_path`, `copy_path`, `move_path`, `link_path` (hard/soft link), `read_text_file`, `path_info`, `open_path`, `edit_path` (default editor: macOS `open -e`, Linux `$EDITOR`/`xdg-open`, Windows `ShellExecuteW` verb `"edit"`), `quit_app`, `get_appearance`, `set_theme`, `set_font`, `set_font_size`, `open_settings`.
+
+## 5. Frontend Key Bindings (F-key bar)
+F1 help, F2 quick menu, F3 view file, F4 edit, F5 copy, F6 move, F7 new folder, F8 delete, F9 quick menu, F10 quit, F11 refresh, F12 file info. The F5 copy dialog shows hardlink/softlink checkboxes.
+
+## 6. Project Commands
 - **Run Dev Mode:** `cargo tauri dev`
 - **Build Production:** `cargo tauri build` (bundle appears under `target/release/bundle/`)
 - **Lint Rust:** `cargo clippy`
@@ -25,11 +38,22 @@
 - **Verify JS:** `node --check web/<file>.js`
 - **Version:** bump BOTH `Cargo.toml` and `tauri.conf.json` `version`.
 
-## 5. Coding Conventions & Safety
+## 7. Coding Conventions & Safety
 - **Tauri commands:** return `Result<T, String>` with human-readable errors so the frontend can `alert()`/display them.
 - **Style:** spaces only, 4 spaces = 1 tab. Match surrounding code; no decorative comments.
-- **WebKit Bug (macOS):** WKWebView can fire spurious `click` events, e.g. when a drag-select ends on a different element. Use `mousedown` for dismiss/tab/single-press UI (overlay backdrops, properties tabs) and avoid relying on `click` for anything near selectable text. Checkboxes use `change`.
+- **WebKit Bug (macOS):** WKWebView can fire spurious `click` events, e.g. when a drag-select ends on a different element. Use `mousedown` for dismiss/tab/single-press UI (overlay backdrops, modal buttons) and avoid relying on `click` for anything near selectable text. Checkboxes use `change`.
 - **No new Rust crates or JS packages** unless explicitly requested.
+- **No Rust toolchain on dev machine:** `cargo`/`rustc` may be unavailable — never assume Rust compiles locally; review manually and ask the user to run `cargo check`.
 
-## 6. Scoping
+## 8. Modal Focus Rules
+- Tab/Shift+Tab while a modal is open must cycle ONLY through visible focusable elements inside the active modal (`.modal`), never background controls. Implemented via `getModalFocusables()` + the `keydown` handler; `preventDefault()` on Tab.
+- Restore focus to the element that had focus before opening the modal (`lastFocused`) when it closes.
+- All text in modals comes from `t()` / `tp()` — never hardcode strings.
+
+## 9. i18n Rule (IMPORTANT)
+- All UI text (labels, buttons, F-key bar, menu items, modal titles/messages, help text, error messages shown in the UI) MUST go through `web/i18n.js` via `t(key)`/`tp(key, {vars})` or `data-i18n` attributes.
+- **When adding or changing any visible element, ALWAYS update BOTH the Bulgarian (`bg`) and English (`en`) dictionaries in `web/i18n.js`.** Never leave a key defined in only one language. Keep translations in sync.
+- `LANG` is derived from `navigator.language` (prefix `bg` → Bulgarian, otherwise English). New keys must be added to both objects.
+
+## 10. Scoping
 - Frontend logic/UI in `/web`, backend rust logic in `/src`. Do not mix concerns.

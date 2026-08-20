@@ -10,18 +10,14 @@
 
   <body>
     <header class="toolbar top">
-      <button id="btn-back" title="Назад">◄ Назад</button>
-      <button id="btn-up" title="Нагоре">▲ Нагоре</button>
-      <button id="btn-home" title="Домашна директория">⌂ Старт</button>
-      <button id="btn-refresh" title="Обнови">⟳ Обнови</button>
+      <button id="btn-back" data-i18n="toolbar.back" data-i18n-title="title.back">◄ Назад</button>
+      <button id="btn-up" data-i18n="toolbar.up" data-i18n-title="title.up">▲ Нагоре</button>
+      <button id="btn-home" data-i18n="toolbar.home" data-i18n-title="title.home">⌂ Старт</button>
+      <button id="btn-refresh" data-i18n="toolbar.refresh" data-i18n-title="title.refresh">⟳ Обнови</button>
       <span class="sep"></span>
-      <button id="btn-mkdir" title="Създай папка">Нова папка</button>
-      <button id="btn-copy" title="Копирай в другия панел">Копирай</button>
-      <button id="btn-move" title="Премести в другия панел">Премести</button>
-      <button id="btn-delete" title="Изтрий">Изтрий</button>
-      <button id="btn-info" title="Информация">Инфо</button>
+      <button id="btn-settings" data-i18n="toolbar.settings" data-i18n-title="title.settings">Настройки</button>
       <span class="grow"></span>
-      <button id="btn-quit" title="Изход (F10)">Изход</button>
+      <button id="btn-quit" data-i18n="toolbar.quit" data-i18n-title="title.quit">Изход</button>
     </header>
 
     <div class="panels">
@@ -38,18 +34,18 @@
     </div>
 
     <footer class="toolbar bottom">
-      <button class="fkey" data-fkey="F1"><span class="fnum">1</span><span class="flabel">Помощ</span></button>
-      <button class="fkey" data-fkey="F2"><span class="fnum">2</span><span class="flabel">Меню</span></button>
-      <button class="fkey" data-fkey="F3"><span class="fnum">3</span><span class="flabel">Преглед</span></button>
-      <button class="fkey" data-fkey="F4"><span class="fnum">4</span><span class="flabel">Отвори</span></button>
-      <button class="fkey" data-fkey="F5"><span class="fnum">5</span><span class="flabel">Копирай</span></button>
-      <button class="fkey" data-fkey="F6"><span class="fnum">6</span><span class="flabel">Премести</span></button>
-      <button class="fkey" data-fkey="F7"><span class="fnum">7</span><span class="flabel">Папка</span></button>
-      <button class="fkey" data-fkey="F8"><span class="fnum">8</span><span class="flabel">Изтрий</span></button>
-      <button class="fkey" data-fkey="F9"><span class="fnum">9</span><span class="flabel">Меню</span></button>
-      <button class="fkey" data-fkey="F10"><span class="fnum">10</span><span class="flabel">Изход</span></button>
-      <button class="fkey" data-fkey="F11"><span class="fnum">11</span><span class="flabel">Обнови</span></button>
-      <button class="fkey" data-fkey="F12"><span class="fnum">12</span><span class="flabel">Инфо</span></button>
+      <button class="fkey" data-fkey="F1"><span class="fnum">1</span><span class="flabel" data-i18n="fkey.f1">Помощ</span></button>
+      <button class="fkey" data-fkey="F2"><span class="fnum">2</span><span class="flabel" data-i18n="fkey.f2">Меню</span></button>
+      <button class="fkey" data-fkey="F3"><span class="fnum">3</span><span class="flabel" data-i18n="fkey.f3">Преглед</span></button>
+      <button class="fkey" data-fkey="F4"><span class="fnum">4</span><span class="flabel" data-i18n="fkey.f4">Отвори</span></button>
+      <button class="fkey" data-fkey="F5"><span class="fnum">5</span><span class="flabel" data-i18n="fkey.f5">Копирай</span></button>
+      <button class="fkey" data-fkey="F6"><span class="fnum">6</span><span class="flabel" data-i18n="fkey.f6">Премести</span></button>
+      <button class="fkey" data-fkey="F7"><span class="fnum">7</span><span class="flabel" data-i18n="fkey.f7">Папка</span></button>
+      <button class="fkey" data-fkey="F8"><span class="fnum">8</span><span class="flabel" data-i18n="fkey.f8">Изтрий</span></button>
+      <button class="fkey" data-fkey="F9"><span class="fnum">9</span><span class="flabel" data-i18n="fkey.f9">Меню</span></button>
+      <button class="fkey" data-fkey="F10"><span class="fnum">10</span><span class="flabel" data-i18n="fkey.f10">Изход</span></button>
+      <button class="fkey" data-fkey="F11"><span class="fnum">11</span><span class="flabel" data-i18n="fkey.f11">Обнови</span></button>
+      <button class="fkey" data-fkey="F12"><span class="fnum">12</span><span class="flabel" data-i18n="fkey.f12">Инфо</span></button>
     </footer>
 
     <div class="modal-overlay" id="modal-overlay">

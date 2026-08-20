@@ -1,0 +1,123 @@
+import { t, applyStatic } from "/i18n.js";
+
+const { invoke } = window.__TAURI__.core;
+const { open: openDialog } = window.__TAURI__.dialog;
+
+const SIZES = [10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 28];
+
+const FONT_MAP = {
+  default: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+  monospace: "Menlo, Monaco, Consolas, 'DejaVu Sans Mono', monospace",
+  serif: "Georgia, 'Times New Roman', serif",
+  sans: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
+};
+
+const rootEl = document.documentElement;
+const themeRadios = document.querySelectorAll('input[name="theme"]');
+const fontSelect = document.querySelector("#font");
+const sizeSelect = document.querySelector("#font-size");
+const diffCommand = document.querySelector("#diff-command");
+const diffTerminal = document.querySelector("#diff-terminal");
+const diffBrowse = document.querySelector("#diff-browse");
+const editCommand = document.querySelector("#edit-command");
+const editTerminal = document.querySelector("#edit-terminal");
+const editBrowse = document.querySelector("#edit-browse");
+
+SIZES.forEach((s) => {
+  const opt = document.createElement("option");
+  opt.value = String(s);
+  opt.textContent = t("sizePx", { size: s });
+  sizeSelect.appendChild(opt);
+});
+
+function applyAppearance(appearance) {
+  rootEl.classList.toggle("theme-dark", appearance.theme === "dark");
+  rootEl.classList.toggle("theme-light", appearance.theme === "light");
+  rootEl.style.setProperty("--font", FONT_MAP[appearance.font] || FONT_MAP.default);
+  rootEl.style.setProperty("--font-size", `${appearance.fontSize}px`);
+}
+
+function setControlValue(appearance) {
+  const themeRadio = document.querySelector(`input[name="theme"][value="${appearance.theme}"]`);
+  if (themeRadio) themeRadio.checked = true;
+  fontSelect.value = appearance.font;
+  sizeSelect.value = String(appearance.fontSize);
+  diffCommand.value = appearance.diffCommand || "";
+  diffTerminal.checked = !!appearance.diffInTerminal;
+  editCommand.value = appearance.editCommand || "";
+  editTerminal.checked = !!appearance.editInTerminal;
+}
+
+async function init() {
+  applyStatic();
+  const appearance = await invoke("get_appearance").catch(() => null);
+  if (!appearance) return;
+  setControlValue(appearance);
+  applyAppearance(appearance);
+}
+
+themeRadios.forEach((radio) => {
+  radio.addEventListener("change", async () => {
+    if (!radio.checked) return;
+    const appearance = await invoke("set_theme", { theme: radio.value }).catch(() => null);
+    if (appearance) applyAppearance(appearance);
+  });
+});
+
+fontSelect.addEventListener("change", async () => {
+  const appearance = await invoke("set_font", { font: fontSelect.value }).catch(() => null);
+  if (appearance) applyAppearance(appearance);
+});
+
+sizeSelect.addEventListener("change", async () => {
+  const appearance = await invoke("set_font_size", { fontSize: Number(sizeSelect.value) }).catch(() => null);
+  if (appearance) applyAppearance(appearance);
+});
+
+let diffDebounce = null;
+diffCommand.addEventListener("input", () => {
+  clearTimeout(diffDebounce);
+  diffDebounce = setTimeout(async () => {
+    await invoke("set_diff_command", { command: diffCommand.value }).catch(() => {});
+  }, 400);
+});
+
+diffTerminal.addEventListener("change", async () => {
+  await invoke("set_diff_in_terminal", { inTerminal: diffTerminal.checked }).catch(() => {});
+});
+
+function quotePath(p) {
+  return /[\s"']/.test(p) ? `"${p.replace(/"/g, '\\"')}"` : p;
+}
+
+function bindBrowse(btn, input, placeholder) {
+  btn.addEventListener("mousedown", async () => {
+    const picked = await openDialog({ multiple: false, title: t("dialog.pickApp") }).catch(() => null);
+    if (!picked) return;
+    const path = Array.isArray(picked) ? picked[0] : picked;
+    const quoted = quotePath(path);
+    if (input.value.trim() === "" || input.value.includes("%1") || input.value.includes("%2")) {
+      input.value = `${quoted} ${placeholder}`.trim();
+    } else {
+      input.value = `${quoted}`;
+    }
+    input.dispatchEvent(new Event("input"));
+  });
+}
+
+bindBrowse(diffBrowse, diffCommand, "%1 %2");
+bindBrowse(editBrowse, editCommand, "%1");
+
+let editDebounce = null;
+editCommand.addEventListener("input", () => {
+  clearTimeout(editDebounce);
+  editDebounce = setTimeout(async () => {
+    await invoke("set_edit_command", { command: editCommand.value }).catch(() => {});
+  }, 400);
+});
+
+editTerminal.addEventListener("change", async () => {
+  await invoke("set_edit_in_terminal", { inTerminal: editTerminal.checked }).catch(() => {});
+});
+
+init();
