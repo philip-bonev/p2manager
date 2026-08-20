@@ -675,7 +675,9 @@ fn default_editor_command(path: &str) -> std::process::Command {
             return cmd;
         }
     }
-    std::process::Command::new("xdg-open").arg(path)
+    let mut cmd = std::process::Command::new("xdg-open");
+    cmd.arg(path);
+    cmd
 }
 
 #[tauri::command]
