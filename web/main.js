@@ -110,6 +110,21 @@ function fmtDate(secs) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+function fmtSpeed(bytesPerSec) {
+  if (!bytesPerSec || bytesPerSec <= 0) return "—";
+  return `${fmtSize(bytesPerSec)}/s`;
+}
+
+function fmtTime(secs) {
+  secs = Math.max(0, Math.round(secs));
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  const p = (n) => String(n).padStart(2, "0");
+  if (h > 0) return `${h}:${p(m)}:${p(s)}`;
+  return `${m}:${p(s)}`;
+}
+
 function getActive() {
   return state[activeSide];
 }
@@ -528,26 +543,59 @@ async function copyOrMove(op) {
   );
   if (!res.ok) return;
   const links = op === "copy" && (res.values.hard || res.values.soft);
-  const ctrl = openProgressModal(verb);
-  progressCtrl = ctrl;
   const id =
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random()}`;
-  let unlisten = null;
-  try {
-    unlisten = await getCurrentWindow().listen("copy-progress", (ev) => {
-      if (!ev.payload || ev.payload.id !== id) return;
-      ctrl.setCurrent(ev.payload.path, ev.payload.copied, ev.payload.total);
-    });
-  } catch (err) {
-    // няма достъп до събитията — само общият прогрес ще се обновява
-  }
+  const ctrl = openProgressModal(verb, id);
+  progressCtrl = ctrl;
+  const totalBytes = targets.reduce((s, t) => s + (t.row.entry.size || 0), 0);
+  const startTime = Date.now();
+  let doneBytes = 0;
+  let lastSample = null;
+  let speed = 0;
+  const updateOverall = (extra) => {
+    const done = doneBytes + (extra || 0);
+    const pct = totalBytes > 0 ? Math.round((done / totalBytes) * 100) : 0;
+    ctrl.setOverall(
+      t("copy.overall", {
+        done: fmtSize(done),
+        total: fmtSize(totalBytes),
+        pct,
+      }),
+      done,
+      totalBytes
+    );
+  };
+  const poll = setInterval(async () => {
+    try {
+      const p = await invoke("get_copy_progress", { id });
+      if (!p) return;
+      const now = Date.now();
+      if (lastSample && p.copied > lastSample.copied) {
+        const dt = (now - lastSample.t) / 1000;
+        if (dt > 0) speed = (p.copied - lastSample.copied) / dt;
+      }
+      lastSample = { t: now, copied: p.copied };
+      const pct = p.total > 0 ? Math.round((p.copied / p.total) * 100) : 0;
+      const remaining = p.total > 0 && speed > 0 ? (p.total - p.copied) / speed : 0;
+      const stats = t("copy.curStats", {
+        pct,
+        speed: fmtSpeed(speed),
+        eta: t("copy.eta", { v: fmtTime(remaining) }),
+        elapsed: t("copy.elapsed", { v: fmtTime((now - startTime) / 1000) }),
+      });
+      ctrl.setCurrent(p.path, p.copied, p.total, stats);
+      updateOverall(p.copied);
+    } catch (err) {}
+  }, 150);
   for (let i = 0; i < targets.length; i++) {
     if (ctrl.cancelled) break;
     const t = targets[i];
-    ctrl.setCurrent(t.row.entry.name, 0, 0);
-    ctrl.setOverall(t("copy.overall", { done: i, total: targets.length }), i, targets.length);
+    lastSample = null;
+    speed = 0;
+    ctrl.setCurrent(t.row.entry.name, 0, 0, "");
+    updateOverall(0);
     try {
       if (links) {
         await invoke("link_path", {
@@ -567,9 +615,10 @@ async function copyOrMove(op) {
       alertModal(t("err.title"), String(err));
       break;
     }
-    ctrl.setOverall(t("copy.overall", { done: i + 1, total: targets.length }), i + 1, targets.length);
+    doneBytes += t.row.entry.size || 0;
+    updateOverall(0);
   }
-  if (unlisten) unlisten();
+  clearInterval(poll);
   progressCtrl = null;
   ctrl.close();
   refresh(side);
@@ -783,8 +832,9 @@ async function diffSelected() {
   }
 }
 
-function helpModal() {
-  showModal(t("help.title"), "pre", t("help.text"), true);
+async function helpModal() {
+  const v = await invoke("get_app_version").catch(() => "");
+  showModal(t("help.title"), "pre", `${t("help.text")}\n\n${t("help.version")}: ${v}`, true);
 }
 
 function quickMenu() {
@@ -861,7 +911,7 @@ function closeModal() {
   lastFocused = null;
 }
 
-function openProgressModal(title) {
+function openProgressModal(title, id) {
   lastFocused = document.activeElement;
   modalTitle.textContent = title;
   modalBody.innerHTML = "";
@@ -869,10 +919,6 @@ function openProgressModal(title) {
 
   const curLabel = document.createElement("div");
   curLabel.className = "prog-label";
-  ctrl.setCurrent = (label, copied, total) => {
-    curLabel.textContent = label;
-    curFill.style.width = total > 0 ? `${Math.min(100, Math.round((copied / total) * 100))}%` : "0%";
-  };
   modalBody.appendChild(curLabel);
 
   const curBar = document.createElement("div");
@@ -882,12 +928,12 @@ function openProgressModal(title) {
   curBar.appendChild(curFill);
   modalBody.appendChild(curBar);
 
+  const curStats = document.createElement("div");
+  curStats.className = "prog-stats";
+  modalBody.appendChild(curStats);
+
   const totLabel = document.createElement("div");
   totLabel.className = "prog-label";
-  ctrl.setOverall = (label, done, total) => {
-    totLabel.textContent = label;
-    totFill.style.width = total > 0 ? `${Math.min(100, Math.round((done / total) * 100))}%` : "0%";
-  };
   modalBody.appendChild(totLabel);
 
   const totBar = document.createElement("div");
@@ -897,6 +943,27 @@ function openProgressModal(title) {
   totBar.appendChild(totFill);
   modalBody.appendChild(totBar);
 
+  ctrl.setCurrent = (label, copied, total, statsText) => {
+    curLabel.textContent = label;
+    if (total > 0) {
+      curFill.classList.remove("indet");
+      curFill.style.width = `${Math.min(100, Math.round((copied / total) * 100))}%`;
+    } else {
+      curFill.classList.add("indet");
+    }
+    curStats.textContent = statsText || "";
+  };
+
+  ctrl.setOverall = (label, done, total) => {
+    totLabel.textContent = label;
+    if (total > 0) {
+      totFill.classList.remove("indet");
+      totFill.style.width = `${Math.min(100, Math.round((done / total) * 100))}%`;
+    } else {
+      totFill.classList.add("indet");
+    }
+  };
+
   const cancelBtn = document.createElement("button");
   cancelBtn.textContent = t("btn.cancel");
   ctrl.cancel = () => {
@@ -904,6 +971,7 @@ function openProgressModal(title) {
     ctrl.cancelled = true;
     cancelBtn.disabled = true;
     cancelBtn.textContent = t("copy.cancelling");
+    invoke("cancel_copy", { id }).catch(() => {});
   };
   cancelBtn.addEventListener("mousedown", ctrl.cancel);
   modalActions.appendChild(cancelBtn);
@@ -956,6 +1024,14 @@ function confirmModal(title, message, checkboxes) {
       closeModal();
       resolve({ ok: false, values });
     });
+    noBtn.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        ev.stopPropagation();
+        closeModal();
+        resolve({ ok: false, values });
+      }
+    });
     modalActions.appendChild(noBtn);
 
     const yesBtn = document.createElement("button");
@@ -964,6 +1040,14 @@ function confirmModal(title, message, checkboxes) {
     yesBtn.addEventListener("mousedown", () => {
       closeModal();
       resolve({ ok: true, values });
+    });
+    yesBtn.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        ev.stopPropagation();
+        closeModal();
+        resolve({ ok: true, values });
+      }
     });
     modalActions.appendChild(yesBtn);
 

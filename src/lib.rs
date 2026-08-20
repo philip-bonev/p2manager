@@ -89,6 +89,7 @@ struct WindowGeometry {
 struct AppState {
     geometry: Mutex<WindowGeometry>,
     cancel_flags: Mutex<HashMap<String, Arc<AtomicBool>>>,
+    progress: Mutex<HashMap<String, CopyProgress>>,
 }
 
 fn settings_path() -> PathBuf {
@@ -205,15 +206,17 @@ fn copy_file_progress(
             .write_all(&buf[..n])
             .map_err(|e| format!("Грешка при запис в {}: {}", dst.display(), e))?;
         copied += n as u64;
-        let _ = app.emit(
-            "copy-progress",
-            CopyProgress {
-                id: id.to_string(),
-                copied,
-                total,
-                path: src.to_string_lossy().to_string(),
-            },
-        );
+        if let Some(state) = app.try_state::<AppState>() {
+            state.progress.lock().unwrap().insert(
+                id.to_string(),
+                CopyProgress {
+                    id: id.to_string(),
+                    copied,
+                    total,
+                    path: src.to_string_lossy().to_string(),
+                },
+            );
+        }
     }
     Ok(())
 }
@@ -254,6 +257,12 @@ fn register_cancel(app: &tauri::AppHandle, id: &str) -> Arc<AtomicBool> {
 fn unregister_cancel(app: &tauri::AppHandle, id: &str) {
     if let Some(state) = app.try_state::<AppState>() {
         state.cancel_flags.lock().unwrap().remove(id);
+    }
+}
+
+fn unregister_progress(app: &tauri::AppHandle, id: &str) {
+    if let Some(state) = app.try_state::<AppState>() {
+        state.progress.lock().unwrap().remove(id);
     }
 }
 
@@ -430,11 +439,11 @@ fn link_path(src: String, dst_dir: String, hard: bool) -> Result<String, String>
 }
 
 #[tauri::command]
-fn copy_path_progress(
+async fn copy_path_progress(
+    app: tauri::AppHandle,
     src: String,
     dst_dir: String,
     id: String,
-    app: tauri::AppHandle,
 ) -> Result<String, String> {
     let src_path = PathBuf::from(&src);
     let dst_path = PathBuf::from(&dst_dir);
@@ -453,8 +462,17 @@ fn copy_path_progress(
     }
     let dest = resolve_dest(&dst_path, &name);
     let cancel = register_cancel(&app, &id);
-    let result = copy_recursive_progress(&src_path, &dest, &app, &id, &cancel);
+    let app2 = app.clone();
+    let id2 = id.clone();
+    let src2 = src_path.clone();
+    let dest2 = dest.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        copy_recursive_progress(&src2, &dest2, &app2, &id2, &cancel)
+    })
+    .await
+    .map_err(|e| format!("Грешка при копиране: {}", e))?;
     unregister_cancel(&app, &id);
+    unregister_progress(&app, &id);
     match result {
         Ok(_) => Ok(dest.to_string_lossy().to_string()),
         Err(e) => {
@@ -468,11 +486,11 @@ fn copy_path_progress(
 }
 
 #[tauri::command]
-fn move_path_progress(
+async fn move_path_progress(
+    app: tauri::AppHandle,
     src: String,
     dst_dir: String,
     id: String,
-    app: tauri::AppHandle,
 ) -> Result<String, String> {
     let src_path = PathBuf::from(&src);
     let dst_path = PathBuf::from(&dst_dir);
@@ -494,8 +512,17 @@ fn move_path_progress(
         return Ok(dest.to_string_lossy().to_string());
     }
     let cancel = register_cancel(&app, &id);
-    let result = copy_recursive_progress(&src_path, &dest, &app, &id, &cancel);
+    let app2 = app.clone();
+    let id2 = id.clone();
+    let src2 = src_path.clone();
+    let dest2 = dest.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        copy_recursive_progress(&src2, &dest2, &app2, &id2, &cancel)
+    })
+    .await
+    .map_err(|e| format!("Грешка при преместване: {}", e))?;
     unregister_cancel(&app, &id);
+    unregister_progress(&app, &id);
     match result {
         Ok(_) => {
             let meta = fs::metadata(&src_path).map_err(|e| e.to_string())?;
@@ -525,6 +552,18 @@ fn cancel_copy(id: String, app: tauri::AppHandle) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[tauri::command]
+fn get_copy_progress(id: String, app: tauri::AppHandle) -> Result<Option<CopyProgress>, String> {
+    Ok(app
+        .try_state::<AppState>()
+        .and_then(|s| s.progress.lock().unwrap().get(&id).cloned()))
+}
+
+#[tauri::command]
+fn get_app_version() -> Result<String, String> {
+    Ok(env!("CARGO_PKG_VERSION").to_string())
 }
 
 #[tauri::command]
@@ -1094,6 +1133,7 @@ pub fn run() {
         .manage(AppState {
             geometry: Mutex::new(WindowGeometry::default()),
             cancel_flags: Mutex::new(HashMap::new()),
+            progress: Mutex::new(HashMap::new()),
         })
         .setup(|app| {
             let settings = load_settings();
@@ -1134,6 +1174,8 @@ pub fn run() {
             copy_path_progress,
             move_path_progress,
             cancel_copy,
+            get_copy_progress,
+            get_app_version,
             read_text_file,
             path_info,
             open_path,
