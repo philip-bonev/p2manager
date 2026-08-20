@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="bg">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Panel Manager</title>
+    <script type="module" src="/main.js" defer></script>
+  </head>
+
+  <body>
+    <header class="toolbar top">
+      <button id="btn-back" title="Назад">◄ Назад</button>
+      <button id="btn-up" title="Нагоре">▲ Нагоре</button>
+      <button id="btn-home" title="Домашна директория">⌂ Старт</button>
+      <button id="btn-refresh" title="Обнови">⟳ Обнови</button>
+      <span class="sep"></span>
+      <button id="btn-mkdir" title="Създай папка">Нова папка</button>
+      <button id="btn-copy" title="Копирай в другия панел">Копирай</button>
+      <button id="btn-move" title="Премести в другия панел">Премести</button>
+      <button id="btn-delete" title="Изтрий">Изтрий</button>
+      <button id="btn-info" title="Информация">Инфо</button>
+      <span class="grow"></span>
+      <button id="btn-quit" title="Изход (F10)">Изход</button>
+    </header>
+
+    <div class="panels">
+      <section class="panel" id="panel-left">
+        <div class="panel-head" data-side="left"></div>
+        <ul class="panel-list" data-side="left"></ul>
+        <div class="panel-foot"></div>
+      </section>
+      <section class="panel" id="panel-right">
+        <div class="panel-head" data-side="right"></div>
+        <ul class="panel-list" data-side="right"></ul>
+        <div class="panel-foot"></div>
+      </section>
+    </div>
+
+    <footer class="toolbar bottom">
+      <button class="fkey" data-fkey="F1"><span class="fnum">1</span><span class="flabel">Помощ</span></button>
+      <button class="fkey" data-fkey="F2"><span class="fnum">2</span><span class="flabel">Меню</span></button>
+      <button class="fkey" data-fkey="F3"><span class="fnum">3</span><span class="flabel">Преглед</span></button>
+      <button class="fkey" data-fkey="F4"><span class="fnum">4</span><span class="flabel">Отвори</span></button>
+      <button class="fkey" data-fkey="F5"><span class="fnum">5</span><span class="flabel">Копирай</span></button>
+      <button class="fkey" data-fkey="F6"><span class="fnum">6</span><span class="flabel">Премести</span></button>
+      <button class="fkey" data-fkey="F7"><span class="fnum">7</span><span class="flabel">Папка</span></button>
+      <button class="fkey" data-fkey="F8"><span class="fnum">8</span><span class="flabel">Изтрий</span></button>
+      <button class="fkey" data-fkey="F9"><span class="fnum">9</span><span class="flabel">Меню</span></button>
+      <button class="fkey" data-fkey="F10"><span class="fnum">10</span><span class="flabel">Изход</span></button>
+      <button class="fkey" data-fkey="F11"><span class="fnum">11</span><span class="flabel">Обнови</span></button>
+      <button class="fkey" data-fkey="F12"><span class="fnum">12</span><span class="flabel">Инфо</span></button>
+    </footer>
+
+    <div class="modal-overlay" id="modal-overlay">
+      <div class="modal">
+        <div class="modal-title" id="modal-title"></div>
+        <div class="modal-body" id="modal-body"></div>
+        <div class="modal-actions" id="modal-actions"></div>
+      </div>
+    </div>
+
+    <div class="statusbar" id="statusbar"></div>
+  </body>
+</html>
