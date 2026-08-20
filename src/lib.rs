@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::UNIX_EPOCH;
 use tauri::{Emitter, Manager};
 
@@ -85,6 +88,7 @@ struct WindowGeometry {
 
 struct AppState {
     geometry: Mutex<WindowGeometry>,
+    cancel_flags: Mutex<HashMap<String, Arc<AtomicBool>>>,
 }
 
 fn settings_path() -> PathBuf {
@@ -158,6 +162,107 @@ fn resolve_dest(dst_dir: &Path, name: &str) -> PathBuf {
         candidate = dst_dir.join(format!("{}_{}", name, n));
     }
     candidate
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CopyProgress {
+    id: String,
+    copied: u64,
+    total: u64,
+    path: String,
+}
+
+fn copy_file_progress(
+    src: &Path,
+    dst: &Path,
+    app: &tauri::AppHandle,
+    id: &str,
+    cancel: &AtomicBool,
+) -> Result<(), String> {
+    let total = fs::metadata(src)
+        .map_err(|e| format!("Грешка при четене на {}: {}", src.display(), e))?
+        .len();
+    let mut src_file = fs::File::open(src)
+        .map_err(|e| format!("Грешка при отваряне на {}: {}", src.display(), e))?;
+    let mut dst_file = fs::File::create(dst)
+        .map_err(|e| format!("Грешка при създаване на {}: {}", dst.display(), e))?;
+    let mut buf = vec![0u8; 1 << 20];
+    let mut copied: u64 = 0;
+    loop {
+        if cancel.load(Ordering::Relaxed) {
+            drop(dst_file);
+            let _ = fs::remove_file(dst);
+            return Err("CANCELLED".to_string());
+        }
+        let n = src_file
+            .read(&mut buf)
+            .map_err(|e| format!("Грешка при четене на {}: {}", src.display(), e))?;
+        if n == 0 {
+            break;
+        }
+        dst_file
+            .write_all(&buf[..n])
+            .map_err(|e| format!("Грешка при запис в {}: {}", dst.display(), e))?;
+        copied += n as u64;
+        let _ = app.emit(
+            "copy-progress",
+            CopyProgress {
+                id: id.to_string(),
+                copied,
+                total,
+                path: src.to_string_lossy().to_string(),
+            },
+        );
+    }
+    Ok(())
+}
+
+fn copy_recursive_progress(
+    src: &Path,
+    dst: &Path,
+    app: &tauri::AppHandle,
+    id: &str,
+    cancel: &AtomicBool,
+) -> Result<(), String> {
+    if cancel.load(Ordering::Relaxed) {
+        return Err("CANCELLED".to_string());
+    }
+    if src.is_dir() {
+        fs::create_dir_all(dst)
+            .map_err(|e| format!("Грешка при създаване на {}: {}", dst.display(), e))?;
+        for entry in
+            fs::read_dir(src).map_err(|e| format!("Грешка при четене на {}: {}", src.display(), e))?
+        {
+            let entry = entry.map_err(|e| e.to_string())?;
+            copy_recursive_progress(&entry.path(), &dst.join(entry.file_name()), app, id, cancel)?;
+        }
+    } else {
+        copy_file_progress(src, dst, app, id, cancel)?;
+    }
+    Ok(())
+}
+
+fn register_cancel(app: &tauri::AppHandle, id: &str) -> Arc<AtomicBool> {
+    let flag = Arc::new(AtomicBool::new(false));
+    if let Some(state) = app.try_state::<AppState>() {
+        state.cancel_flags.lock().unwrap().insert(id.to_string(), flag.clone());
+    }
+    flag
+}
+
+fn unregister_cancel(app: &tauri::AppHandle, id: &str) {
+    if let Some(state) = app.try_state::<AppState>() {
+        state.cancel_flags.lock().unwrap().remove(id);
+    }
+}
+
+fn cleanup_partial(dest: &Path, is_dir: bool) {
+    let _ = if is_dir {
+        fs::remove_dir_all(dest)
+    } else {
+        fs::remove_file(dest)
+    };
 }
 
 #[tauri::command]
@@ -322,6 +427,104 @@ fn link_path(src: String, dst_dir: String, hard: bool) -> Result<String, String>
         }
     }
     Ok(dest.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn copy_path_progress(
+    src: String,
+    dst_dir: String,
+    id: String,
+    app: tauri::AppHandle,
+) -> Result<String, String> {
+    let src_path = PathBuf::from(&src);
+    let dst_path = PathBuf::from(&dst_dir);
+    if !dst_path.is_dir() {
+        return Err(format!("Не е директория: {}", dst_dir));
+    }
+    let name = src_path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .ok_or_else(|| "Невалиден изходен път.".to_string())?;
+    if src_path.parent().map(|p| p == dst_path.as_path()).unwrap_or(false) {
+        return Err("Файлът вече е в тази папка.".to_string());
+    }
+    if is_descendant(&dst_path, &src_path) {
+        return Err("Не може да копирате папка в самата нея.".to_string());
+    }
+    let dest = resolve_dest(&dst_path, &name);
+    let cancel = register_cancel(&app, &id);
+    let result = copy_recursive_progress(&src_path, &dest, &app, &id, &cancel);
+    unregister_cancel(&app, &id);
+    match result {
+        Ok(_) => Ok(dest.to_string_lossy().to_string()),
+        Err(e) => {
+            if e == "CANCELLED" {
+                cleanup_partial(&dest, src_path.is_dir());
+                return Err("CANCELLED".to_string());
+            }
+            Err(e)
+        }
+    }
+}
+
+#[tauri::command]
+fn move_path_progress(
+    src: String,
+    dst_dir: String,
+    id: String,
+    app: tauri::AppHandle,
+) -> Result<String, String> {
+    let src_path = PathBuf::from(&src);
+    let dst_path = PathBuf::from(&dst_dir);
+    if !dst_path.is_dir() {
+        return Err(format!("Не е директория: {}", dst_dir));
+    }
+    let name = src_path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .ok_or_else(|| "Невалиден изходен път.".to_string())?;
+    if src_path.parent().map(|p| p == dst_path.as_path()).unwrap_or(false) {
+        return Err("Файлът вече е в тази папка.".to_string());
+    }
+    if is_descendant(&dst_path, &src_path) {
+        return Err("Не може да преместите папка в самата нея.".to_string());
+    }
+    let dest = resolve_dest(&dst_path, &name);
+    if fs::rename(&src_path, &dest).is_ok() {
+        return Ok(dest.to_string_lossy().to_string());
+    }
+    let cancel = register_cancel(&app, &id);
+    let result = copy_recursive_progress(&src_path, &dest, &app, &id, &cancel);
+    unregister_cancel(&app, &id);
+    match result {
+        Ok(_) => {
+            let meta = fs::metadata(&src_path).map_err(|e| e.to_string())?;
+            let del = if meta.is_dir() {
+                fs::remove_dir_all(&src_path)
+            } else {
+                fs::remove_file(&src_path)
+            };
+            del.map_err(|e| format!("Копирано, но не може да се изтрие източникът: {}", e))?;
+            Ok(dest.to_string_lossy().to_string())
+        }
+        Err(e) => {
+            if e == "CANCELLED" {
+                cleanup_partial(&dest, src_path.is_dir());
+                return Err("CANCELLED".to_string());
+            }
+            Err(e)
+        }
+    }
+}
+
+#[tauri::command]
+fn cancel_copy(id: String, app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(state) = app.try_state::<AppState>() {
+        if let Some(flag) = state.cancel_flags.lock().unwrap().get(&id) {
+            flag.store(true, Ordering::Relaxed);
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -888,6 +1091,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
             geometry: Mutex::new(WindowGeometry::default()),
+            cancel_flags: Mutex::new(HashMap::new()),
         })
         .setup(|app| {
             let settings = load_settings();
@@ -925,6 +1129,9 @@ pub fn run() {
             copy_path,
             move_path,
             link_path,
+            copy_path_progress,
+            move_path_progress,
+            cancel_copy,
             read_text_file,
             path_info,
             open_path,

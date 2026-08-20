@@ -58,8 +58,8 @@ async function syncAppearance() {
 }
 
 const state = {
-  left: { path: null, parent: null, items: [], selected: 0, marked: new Set() },
-  right: { path: null, parent: null, items: [], selected: 0, marked: new Set() },
+  left: { path: null, parent: null, items: [], selected: 0, marked: new Set(), sortKey: "name", sortDir: "asc" },
+  right: { path: null, parent: null, items: [], selected: 0, marked: new Set(), sortKey: "name", sortDir: "asc" },
 };
 let activeSide = "left";
 let fuzzyPref = false;
@@ -71,6 +71,10 @@ const lists = {
 const heads = {
   left: document.querySelector("#panel-left .panel-head"),
   right: document.querySelector("#panel-right .panel-head"),
+};
+const cols = {
+  left: document.querySelector("#panel-left .panel-cols"),
+  right: document.querySelector("#panel-right .panel-cols"),
 };
 const foots = {
   left: document.querySelector("#panel-left .panel-foot"),
@@ -114,12 +118,51 @@ function getOther() {
   return state[activeSide === "left" ? "right" : "left"];
 }
 
+function sortedItems(side) {
+  const s = state[side];
+  const dir = s.sortDir === "asc" ? 1 : -1;
+  const key = s.sortKey;
+  const items = [...s.items];
+  items.sort((a, b) => {
+    const cmpDirs = b.isDir - a.isDir;
+    if (cmpDirs !== 0) return cmpDirs;
+    let r;
+    if (key === "size") r = a.size - b.size;
+    else if (key === "date") r = a.modified - b.modified;
+    else r = a.name.toLowerCase() < b.name.toLowerCase() ? -1 : a.name.toLowerCase() > b.name.toLowerCase() ? 1 : 0;
+    return r * dir;
+  });
+  return items;
+}
+
 function fullList(side) {
   const s = state[side];
   const rows = [];
   if (s.parent) rows.push({ kind: "parent" });
-  for (const it of s.items) rows.push({ kind: "item", entry: it });
+  for (const it of sortedItems(side)) rows.push({ kind: "item", entry: it });
   return rows;
+}
+
+function toggleSort(side, key) {
+  const s = state[side];
+  if (s.sortKey === key) {
+    s.sortDir = s.sortDir === "asc" ? "desc" : "asc";
+  } else {
+    s.sortKey = key;
+    s.sortDir = "asc";
+  }
+  render(side);
+  updateCols(side);
+}
+
+function updateCols(side) {
+  const s = state[side];
+  if (!cols[side]) return;
+  cols[side].querySelectorAll("span[data-sort]").forEach((sp) => {
+    sp.classList.toggle("sort-active", sp.dataset.sort === s.sortKey);
+    sp.classList.toggle("asc", sp.dataset.sort === s.sortKey && s.sortDir === "asc");
+    sp.classList.toggle("desc", sp.dataset.sort === s.sortKey && s.sortDir === "desc");
+  });
 }
 
 async function loadDir(side, path) {
@@ -204,6 +247,7 @@ function render(side) {
 
   select(side, s.selected);
   updateFoot(side);
+  updateCols(side);
 }
 
 function select(side, idx) {
@@ -483,26 +527,53 @@ async function copyOrMove(op) {
     checkboxes
   );
   if (!res.ok) return;
+  const links = op === "copy" && (res.values.hard || res.values.soft);
+  const ctrl = openProgressModal(verb);
+  progressCtrl = ctrl;
+  const id =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random()}`;
+  let unlisten = null;
   try {
-    for (const t of targets) {
-      if (op === "copy" && (res.values.hard || res.values.soft)) {
+    unlisten = await getCurrentWindow().listen("copy-progress", (ev) => {
+      if (!ev.payload || ev.payload.id !== id) return;
+      ctrl.setCurrent(ev.payload.path, ev.payload.copied, ev.payload.total);
+    });
+  } catch (err) {
+    // няма достъп до събитията — само общият прогрес ще се обновява
+  }
+  for (let i = 0; i < targets.length; i++) {
+    if (ctrl.cancelled) break;
+    const t = targets[i];
+    ctrl.setCurrent(t.row.entry.name, 0, 0);
+    ctrl.setOverall(t("copy.overall", { done: i, total: targets.length }), i, targets.length);
+    try {
+      if (links) {
         await invoke("link_path", {
           src: t.path,
           dstDir: other.path,
           hard: !!res.values.hard,
         });
       } else {
-        await invoke(op === "copy" ? "copy_path" : "move_path", {
+        await invoke(op === "copy" ? "copy_path_progress" : "move_path_progress", {
           src: t.path,
           dstDir: other.path,
+          id,
         });
       }
+    } catch (err) {
+      if (String(err).includes("CANCELLED")) break;
+      alertModal(t("err.title"), String(err));
+      break;
     }
-    refresh(side);
-    refresh(activeSide === "left" ? "right" : "left");
-  } catch (err) {
-    alertModal(t("err.title"), String(err));
+    ctrl.setOverall(t("copy.overall", { done: i + 1, total: targets.length }), i + 1, targets.length);
   }
+  if (unlisten) unlisten();
+  progressCtrl = null;
+  ctrl.close();
+  refresh(side);
+  refresh(activeSide === "left" ? "right" : "left");
 }
 
 async function deleteSelected() {
@@ -745,6 +816,7 @@ function quitApp() {
 /* ---------- Modal helpers ---------- */
 
 let lastFocused = null;
+let progressCtrl = null;
 
 function getModalFocusables() {
   const modal = document.querySelector(".modal");
@@ -787,6 +859,63 @@ function closeModal() {
     lastFocused.focus();
   }
   lastFocused = null;
+}
+
+function openProgressModal(title) {
+  lastFocused = document.activeElement;
+  modalTitle.textContent = title;
+  modalBody.innerHTML = "";
+  const ctrl = { cancelled: false, closed: false };
+
+  const curLabel = document.createElement("div");
+  curLabel.className = "prog-label";
+  ctrl.setCurrent = (label, copied, total) => {
+    curLabel.textContent = label;
+    curFill.style.width = total > 0 ? `${Math.min(100, Math.round((copied / total) * 100))}%` : "0%";
+  };
+  modalBody.appendChild(curLabel);
+
+  const curBar = document.createElement("div");
+  curBar.className = "prog-bar";
+  const curFill = document.createElement("div");
+  curFill.className = "prog-fill";
+  curBar.appendChild(curFill);
+  modalBody.appendChild(curBar);
+
+  const totLabel = document.createElement("div");
+  totLabel.className = "prog-label";
+  ctrl.setOverall = (label, done, total) => {
+    totLabel.textContent = label;
+    totFill.style.width = total > 0 ? `${Math.min(100, Math.round((done / total) * 100))}%` : "0%";
+  };
+  modalBody.appendChild(totLabel);
+
+  const totBar = document.createElement("div");
+  totBar.className = "prog-bar";
+  const totFill = document.createElement("div");
+  totFill.className = "prog-fill";
+  totBar.appendChild(totFill);
+  modalBody.appendChild(totBar);
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.textContent = t("btn.cancel");
+  ctrl.cancel = () => {
+    if (ctrl.cancelled) return;
+    ctrl.cancelled = true;
+    cancelBtn.disabled = true;
+    cancelBtn.textContent = t("copy.cancelling");
+  };
+  cancelBtn.addEventListener("mousedown", ctrl.cancel);
+  modalActions.appendChild(cancelBtn);
+
+  overlay.classList.add("open");
+  cancelBtn.focus();
+  ctrl.close = () => {
+    if (ctrl.closed) return;
+    ctrl.closed = true;
+    closeModal();
+  };
+  return ctrl;
 }
 
 function confirmModal(title, message, checkboxes) {
@@ -1333,6 +1462,17 @@ document.querySelectorAll(".panel-head").forEach((head) => {
   });
 });
 
+document.querySelectorAll(".panel-cols").forEach((colrow) => {
+  colrow.querySelectorAll("span[data-sort]").forEach((sp) => {
+    sp.addEventListener("mousedown", (ev) => {
+      ev.preventDefault();
+      const side = colrow.dataset.side;
+      setActiveSide(side);
+      toggleSort(side, sp.dataset.sort);
+    });
+  });
+});
+
 document.querySelector("#btn-up").addEventListener("mousedown", () => goUp(activeSide));
 document.querySelector("#btn-home").addEventListener("mousedown", async () => {
   const home = await invoke("home_dir").catch(() => "");
@@ -1353,7 +1493,11 @@ document.addEventListener("keydown", (ev) => {
   if (overlay.classList.contains("open")) {
     if (ev.key === "Escape") {
       ev.preventDefault();
-      closeModal();
+      if (progressCtrl) {
+        progressCtrl.cancel();
+      } else {
+        closeModal();
+      }
     } else if (ev.key === "Tab") {
       ev.preventDefault();
       const focusables = getModalFocusables();

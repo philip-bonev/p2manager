@@ -251,6 +251,52 @@ body {
   color: var(--head-text);
 }
 
+.panel-cols {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: var(--font-size, 14px);
+  color: var(--dim);
+  user-select: none;
+  cursor: default;
+}
+
+.panel-cols span[data-sort] {
+  cursor: pointer;
+}
+
+.panel-cols span[data-sort]:hover {
+  color: var(--text);
+}
+
+.panel-cols .col-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: calc(1.4em + 8px);
+}
+
+.panel-cols .col-size {
+  flex: 0 0 auto;
+  margin-left: auto;
+  text-align: right;
+}
+
+.panel-cols .col-date {
+  flex: 0 0 auto;
+  min-width: 80px;
+  text-align: right;
+}
+
+.panel-cols span.sort-active::after {
+  content: " ▴";
+}
+
+.panel-cols span.sort-active.desc::after {
+  content: " ▾";
+}
+
 .panel-list {
   flex: 1 1 auto;
   overflow-y: auto;
@@ -577,6 +623,34 @@ body {
   max-height: 320px;
   overflow-y: auto;
   outline: none;
+}
+
+.prog-label {
+  font-family: var(--font, inherit);
+  font-size: 12px;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 2px 0;
+  max-width: 60vw;
+}
+
+.prog-bar {
+  height: 12px;
+  border: 1px solid var(--modal-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--modal-input-bg);
+  margin-bottom: 10px;
+  min-width: 300px;
+}
+
+.prog-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--dir);
+  transition: width 0.15s linear;
 }
 
 .fav-list li {
