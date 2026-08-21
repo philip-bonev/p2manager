@@ -1104,11 +1104,9 @@ fn launch(mut cmd: std::process::Command, in_terminal: bool, cwd: Option<&Path>)
         if prog.ends_with(".app") {
             let args: Vec<String> = cmd.get_args().map(|a| a.to_string_lossy().to_string()).collect();
             if let Some(bin) = app_binary(&prog) {
-                std::process::Command::new(&bin)
-                    .args(&args)
-                    .spawn()
-                    .map_err(|e| format!("Грешка при стартиране на {}: {}", prog, e))?;
-                return Ok(());
+                if std::process::Command::new(&bin).args(&args).spawn().is_ok() {
+                    return Ok(());
+                }
             }
             std::process::Command::new("open")
                 .arg("-n")
