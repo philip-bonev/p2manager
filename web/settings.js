@@ -50,6 +50,7 @@ const diffBrowse = document.querySelector("#diff-browse");
 const editCommand = document.querySelector("#edit-command");
 const editTerminal = document.querySelector("#edit-terminal");
 const editBrowse = document.querySelector("#edit-browse");
+const showHidden = document.querySelector("#show-hidden");
 
 SIZES.forEach((s) => {
   const opt = document.createElement("option");
@@ -75,6 +76,7 @@ function setControlValue(appearance) {
   diffTerminal.checked = !!appearance.diffInTerminal;
   editCommand.value = appearance.editCommand || "";
   editTerminal.checked = !!appearance.editInTerminal;
+  showHidden.checked = appearance.showHidden !== false;
 }
 
 async function init() {
@@ -147,6 +149,10 @@ editCommand.addEventListener("input", () => {
 
 editTerminal.addEventListener("change", async () => {
   await invoke("set_edit_in_terminal", { inTerminal: editTerminal.checked }).catch(() => {});
+});
+
+showHidden.addEventListener("change", async () => {
+  await invoke("set_show_hidden", { showHidden: showHidden.checked }).catch(() => {});
 });
 
 init();

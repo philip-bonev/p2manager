@@ -42,6 +42,10 @@ fn home_dir_path() -> Option<PathBuf> {
     std::env::var(key).ok().map(PathBuf::from)
 }
 
+fn default_show_hidden() -> bool {
+    true
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase", default)]
 struct AppSettings {
@@ -58,6 +62,8 @@ struct AppSettings {
     height: Option<u32>,
     x: Option<i32>,
     y: Option<i32>,
+    #[serde(default = "default_show_hidden")]
+    show_hidden: bool,
 }
 
 impl Default for AppSettings {
@@ -76,6 +82,7 @@ impl Default for AppSettings {
             height: None,
             x: None,
             y: None,
+            show_hidden: true,
         }
     }
 }
@@ -134,6 +141,27 @@ fn entry_from_path(path: &Path) -> Result<FileEntry, String> {
         size: meta.len(),
         modified: modified_secs(&meta),
     })
+}
+
+fn is_hidden(path: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        if let Ok(meta) = fs::metadata(path) {
+            const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
+            if meta.file_attributes() & FILE_ATTRIBUTE_HIDDEN != 0 {
+                return true;
+            }
+        }
+        false
+    }
+    #[cfg(not(windows))]
+    {
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .map(|s| s.starts_with('.'))
+            .unwrap_or(false)
+    }
 }
 
 fn copy_recursive(src: &Path, dst: &Path) -> Result<(), String> {
@@ -280,10 +308,15 @@ fn list_dir(path: String) -> Result<DirListing, String> {
     if !dir.is_dir() {
         return Err(format!("Не е директория: {}", path));
     }
+    let show_hidden = load_settings().show_hidden;
     let mut items = Vec::new();
     for entry in fs::read_dir(&dir).map_err(|e| format!("Грешка при четене на {}: {}", path, e))? {
         let entry = entry.map_err(|e| e.to_string())?;
-        match entry_from_path(&entry.path()) {
+        let p = entry.path();
+        if !show_hidden && is_hidden(&p) {
+            continue;
+        }
+        match entry_from_path(&p) {
             Ok(fe) => items.push(fe),
             Err(_) => continue,
         }
@@ -1111,6 +1144,15 @@ fn set_edit_in_terminal(in_terminal: bool, app: tauri::AppHandle) -> Result<AppS
 }
 
 #[tauri::command]
+fn set_show_hidden(show_hidden: bool, app: tauri::AppHandle) -> Result<AppSettings, String> {
+    let mut settings = load_settings();
+    settings.show_hidden = show_hidden;
+    save_settings(&settings)?;
+    let _ = app.emit("appearance-changed", ());
+    Ok(settings)
+}
+
+#[tauri::command]
 fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("settings") {
         let _ = win.set_focus();
@@ -1192,6 +1234,7 @@ pub fn run() {
             set_diff_in_terminal,
             set_edit_command,
             set_edit_in_terminal,
+            set_show_hidden,
             get_favorites,
             set_favorites,
             get_fav_apps,

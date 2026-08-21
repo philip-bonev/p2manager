@@ -9,6 +9,7 @@ applyStatic();
 const rootEl = document.documentElement;
 let themePref = "system";
 let currentOsTheme = null;
+let showHidden = true;
 
 const FONT_MAP = {
   default: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
@@ -42,6 +43,14 @@ async function syncAppearance() {
   if (appearance) {
     themePref = appearance.theme;
     applyAppearance(appearance);
+    const nextShowHidden = appearance.showHidden !== false;
+    if (nextShowHidden !== showHidden) {
+      showHidden = nextShowHidden;
+      if (state.left.path) refresh("left");
+      if (state.right.path) refresh("right");
+    } else {
+      showHidden = nextShowHidden;
+    }
   }
   try {
     currentOsTheme = await getCurrentWindow().theme();
