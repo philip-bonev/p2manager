@@ -651,6 +651,26 @@ fn is_executable(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(unix)]
+fn should_try_execute(path: &Path) -> bool {
+    if !is_executable(path) {
+        return false;
+    }
+    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+        let lower = ext.to_ascii_lowercase();
+        const BLOCKED: &[&str] = &[
+            "mp4", "mp3", "avi", "mkv", "mov", "flv", "wmv", "webm", "m4v", "mpg", "mpeg", "3gp",
+            "wav", "flac", "aac", "ogg", "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg",
+            "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "md", "json", "xml",
+            "html", "htm", "css", "zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso",
+        ];
+        if BLOCKED.contains(&lower.as_str()) {
+            return false;
+        }
+    }
+    true
+}
+
 #[cfg(target_os = "windows")]
 #[link(name = "shell32")]
 unsafe extern "system" {
@@ -716,12 +736,22 @@ fn open_path(path: String) -> Result<(), String> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        if p.is_file() && is_executable(&p) {
-            std::process::Command::new(&path)
-                .spawn()
-                .map(|_| ())
-                .map_err(|e| format!("Грешка при изпълнение на {}: {}", path, e))?;
-            return Ok(());
+        #[cfg(unix)]
+        {
+            if p.is_file() && should_try_execute(&p) {
+                if std::process::Command::new(&path).spawn().is_ok() {
+                    return Ok(());
+                }
+                // fallback към отваряне с асоциирана програма (напр. NFS с noexec)
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            if p.is_file() && is_executable(&p) {
+                if std::process::Command::new(&path).spawn().is_ok() {
+                    return Ok(());
+                }
+            }
         }
 
         #[cfg(target_os = "macos")]

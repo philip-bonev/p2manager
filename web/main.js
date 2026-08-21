@@ -428,7 +428,7 @@ function openRow(side, idx, forceEnter) {
   const row = rows[idx];
   if (!row) return;
   if (row.kind === "parent") {
-    loadDir(side, s.parent);
+    goUp(side);
     return;
   }
   const e = row.entry;
@@ -452,7 +452,14 @@ function openRow(side, idx, forceEnter) {
 async function goUp(side) {
   const s = state[side];
   if (s.parent) {
-    loadDir(side, s.parent);
+    const curPath = s.path || "";
+    const curName = curPath.replace(/\\/g, "/").replace(/\/$/, "").split("/").pop() || "";
+    await loadDir(side, s.parent);
+    if (curName) {
+      const rows = state[side].rows || [];
+      const idx = rows.findIndex((r) => r.kind === "item" && r.entry.name === curName);
+      if (idx >= 0) select(side, idx);
+    }
   } else {
     alertModal(t("err.title"), t("err.top"));
   }
