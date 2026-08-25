@@ -210,6 +210,9 @@ body {
   color: var(--toolbar-text);
   cursor: pointer;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .toolbar button:hover {
@@ -219,6 +222,18 @@ body {
 
 .toolbar button:active {
   background: var(--btn-active-bg);
+}
+
+.tb-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+.fk-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
 }
 
 .toolbar .sep {
@@ -269,7 +284,7 @@ body {
 .panel-cols {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
   padding: 2px 6px;
   font-family: inherit;
   font-size: var(--font-size, 14px);
@@ -290,18 +305,49 @@ body {
   flex: 1 1 auto;
   min-width: 0;
   padding-left: calc(1.4em + 8px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-cols .col-ext {
+  flex: 0 0 auto;
+  width: var(--col-ext, 60px);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .panel-cols .col-size {
   flex: 0 0 auto;
+  width: var(--col-size, 80px);
   margin-left: auto;
   text-align: right;
 }
 
 .panel-cols .col-date {
   flex: 0 0 auto;
-  min-width: 80px;
+  width: var(--col-date, 120px);
   text-align: right;
+}
+
+.panel-cols .col-resize {
+  flex: 0 0 6px;
+  width: 6px;
+  min-height: 1.2em;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  border-left: 1px solid var(--sep);
+  border-right: 1px solid var(--sep);
+  align-self: stretch;
+}
+
+.panel-cols .col-resize:hover,
+.panel-cols .col-resize.active {
+  background: var(--dir);
+  border-color: var(--dir);
 }
 
 .panel-cols span.sort-active::after {
@@ -337,8 +383,19 @@ body {
   text-overflow: ellipsis;
 }
 
+.panel-list li .ext {
+  flex: 0 0 auto;
+  width: var(--col-ext, 60px);
+  text-align: left;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .panel-list li .size {
   flex: 0 0 auto;
+  width: var(--col-size, 80px);
   margin-left: auto;
   text-align: right;
   color: var(--dim);
@@ -346,8 +403,8 @@ body {
 
 .panel-list li .date {
   flex: 0 0 auto;
+  width: var(--col-date, 120px);
   color: var(--dim);
-  min-width: 80px;
   text-align: right;
 }
 
@@ -413,12 +470,16 @@ body {
   border: none;
   background: transparent;
   color: var(--footer-text);
-  padding: 0;
+  padding: 2px 4px;
   cursor: pointer;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12px;
   text-align: center;
   flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
 }
 
 .toolbar.bottom button:hover {
@@ -447,6 +508,30 @@ body {
   background: var(--status-bg);
   color: var(--status-text);
   font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.name-tooltip {
+  position: fixed;
+  z-index: 200;
+  max-width: 420px;
+  padding: 0;
+  background: var(--modal-input-bg);
+  border: 1px solid var(--modal-border);
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.25);
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--modal-input-text);
+  white-space: nowrap;
+  pointer-events: none;
+  display: none;
+  list-style: none;
+}
+
+.name-tooltip .tt-item {
+  padding: 5px 10px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -723,6 +808,61 @@ body {
 
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+.modal.search-modal {
+  resize: both;
+  overflow: hidden;
+  min-width: 620px;
+  min-height: 540px;
+  width: 720px;
+  height: 600px;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal.search-modal.maximized {
+  width: 96vw;
+  height: 94vh;
+  max-width: 96vw;
+  max-height: 94vh;
+  resize: none;
+}
+
+.modal.search-modal .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-body .row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  flex-wrap: wrap;
+}
+
+.modal-body .row label {
+  white-space: nowrap;
+}
+
+.modal-body hr {
+  border: none;
+  border-top: 1px solid var(--modal-actions-border);
+  margin: 8px 0;
+}
+
+.search-results {
+  flex: 1 1 auto;
+  min-height: 120px;
+  max-height: none !important;
+  border: 1px solid var(--modal-border);
+  overflow-y: auto;
 }
 
 .settings-page {

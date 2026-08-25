@@ -7,7 +7,7 @@
 
 ## 2. Tech Stack & Architecture
 - **Framework:** Tauri v2 (Rust backend + WebView frontend). Rust edition 2024.
-- **Backend:** `/src/lib.rs` (single file, ~630 lines). All Tauri commands live here.
+- **Backend:** `/src/lib.rs` (single file, ~1600 lines). All Tauri commands live here.
 - **Frontend files in `/web`:**
   - `index.html`, `main.js` — main window (dual-panel file manager)
   - `settings.html`, `settings.js` — runtime settings window (theme/font/font-size)
@@ -19,16 +19,16 @@
 - **Platform:** Windows, Linux, macOS. Feature differences handled with `#[cfg(...)]` in Rust.
 
 ## 3. Architecture & Data Flow (important)
-- **Settings:** stored as JSON at `~/.p2manager/config.json` (cross-platform via HOME/USERPROFILE). Loaded in `.setup()` into `AppState.settings`. Window geometry (width/height/x/y) is saved on `RunEvent::ExitRequested` and restored in `.setup()`.
+- **Settings:** stored as JSON at `~/.p2manager/config.json` (cross-platform via HOME/USERPROFILE). Loaded in `.setup()` into `AppState.settings`. Window geometry (width/height/x/y) is saved on `RunEvent::ExitRequested` and restored in `.setup()`. `AppSettings` fields: `theme`, `font`, `fontSize`, `diffCommand`, `diffInTerminal`, `editCommand`, `editInTerminal`, `favorites`, `favApps`, `width`, `height`, `x`, `y`, `showHidden`, `fuzzySearch`, `columnWidths` (`{name, ext, size, date}` as `f64`).
 - **Invoke arg naming:** JS passes camelCase keys (e.g. `newSettings`), Rust receives snake_case (`new_settings`) — Tauri maps automatically.
 - **Windows:** main window is created from `tauri.conf.json`; settings window label `"settings"` is opened at runtime via `open_settings`.
 - **Tauri v2 API notes:** `.run(closure)` is on `App` (use `.build(context).expect(...).run(...)`); `RunEvent::ExitRequested{code, api}`; `WindowEvent::Resized(PhysicalSize<u32>)` / `Moved(PhysicalPosition<i32>)`.
 
 ## 4. Backend Commands (in `src/lib.rs`)
-`list_dir`, `home_dir`, `make_dir`, `delete_path`, `copy_path`, `move_path`, `link_path` (hard/soft link), `read_text_file`, `path_info`, `open_path`, `edit_path` (default editor: macOS `open -e`, Linux `$EDITOR`/`xdg-open`, Windows `ShellExecuteW` verb `"edit"`), `quit_app`, `get_appearance`, `set_theme`, `set_font`, `set_font_size`, `open_settings`.
+`list_dir`, `home_dir`, `make_dir`, `rename_path`, `delete_path`, `copy_path`, `move_path`, `link_path` (hard/soft link), `read_text_file`, `path_info`, `open_path`, `edit_path` (default editor: macOS `open -e`, Linux `$EDITOR`/`xdg-open`, Windows `ShellExecuteW` verb `"edit"`), `quit_app`, `get_appearance`, `set_theme`, `set_font`, `set_font_size`, `set_diff_command`, `set_diff_in_terminal`, `set_edit_command`, `set_edit_in_terminal`, `set_show_hidden`, `set_fuzzy_search`, `set_column_widths`, `get_favorites`, `set_favorites`, `get_fav_apps`, `set_fav_apps`, `open_settings`, `search_files` (async, glob/regex, exclusions, recursive, content search), `copy_path_progress` / `move_path_progress` (async with per-file + overall progress), `get_copy_progress`, `cancel_copy`, `run_diff`, `run_edit`, `run_command`, `get_app_version`.
 
 ## 5. Frontend Key Bindings (F-key bar)
-F1 help, F2 quick menu, F3 view file, F4 edit, F5 copy, F6 move, F7 new folder, F8 delete, F9 quick menu, F10 quit, F11 refresh, F12 file info. The F5 copy dialog shows hardlink/softlink checkboxes.
+F1 help, F2 diff (compare files), F3 view file, F4 edit, F5 copy, F6 move, F7 new folder, F8 delete, F9 quick menu, F10 quit, F11 rename, F12 file info. The F5 copy dialog shows hardlink/softlink checkboxes and a progress dialog with two bars (current file + overall).
 
 ## 6. Project Commands
 - **Run Dev Mode:** `cargo tauri dev`
@@ -55,5 +55,10 @@ F1 help, F2 quick menu, F3 view file, F4 edit, F5 copy, F6 move, F7 new folder, 
 - **When adding or changing any visible element, ALWAYS update BOTH the Bulgarian (`bg`) and English (`en`) dictionaries in `web/i18n.js`.** Never leave a key defined in only one language. Keep translations in sync.
 - `LANG` is derived from `navigator.language` (prefix `bg` → Bulgarian, otherwise English). New keys must be added to both objects.
 
-## 10. Scoping
+## 10. SVG Icons
+- Top toolbar buttons use inline SVG icons (`<svg class="tb-icon">`) with `stroke="currentColor"` for theme adaptation.
+- F-key bar buttons use inline SVG icons (`<svg class="fk-icon">`).
+- `applyStatic()` in `i18n.js` uses `TreeWalker` to replace only text nodes, preserving SVG children.
+
+## 11. Scoping
 - Frontend logic/UI in `/web`, backend rust logic in `/src`. Do not mix concerns.

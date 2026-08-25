@@ -66,6 +66,7 @@ async function syncAppearance() {
     } else {
       showHidden = nextShowHidden;
     }
+    fuzzyPref = !!appearance.fuzzySearch;
   }
   try {
     currentOsTheme = await getCurrentWindow().theme();
@@ -109,6 +110,33 @@ const modalTitle = document.querySelector("#modal-title");
 const modalBody = document.querySelector("#modal-body");
 const modalActions = document.querySelector("#modal-actions");
 const statusbar = document.querySelector("#statusbar");
+const nameTooltip = document.querySelector("#name-tooltip");
+let tooltipTimer = null;
+
+function showNameTooltip(el, text, ms, fromMouse, ev) {
+  hideNameTooltip();
+  if (!text) return;
+  nameTooltip.innerHTML = "";
+  const item = document.createElement("span");
+  item.className = "tt-item";
+  item.textContent = text;
+  nameTooltip.appendChild(item);
+  nameTooltip.style.display = "block";
+  if (fromMouse && ev) {
+    nameTooltip.style.left = Math.min(ev.clientX + 12, window.innerWidth - nameTooltip.offsetWidth - 8) + "px";
+    nameTooltip.style.top = (ev.clientY + 18) + "px";
+  } else {
+    const r = el.getBoundingClientRect();
+    nameTooltip.style.left = Math.min(r.left, window.innerWidth - nameTooltip.offsetWidth - 8) + "px";
+    nameTooltip.style.top = (r.bottom + 2) + "px";
+  }
+  if (ms) tooltipTimer = setTimeout(hideNameTooltip, ms);
+}
+
+function hideNameTooltip() {
+  if (tooltipTimer) { clearTimeout(tooltipTimer); tooltipTimer = null; }
+  nameTooltip.style.display = "none";
+}
 
 const modalEl = overlay.querySelector(".modal");
 modalTitle.addEventListener("dblclick", () => {
@@ -245,6 +273,9 @@ function render(side) {
       name.className = "name";
       name.textContent = "..";
       li.appendChild(name);
+      const ext = document.createElement("span");
+      ext.className = "ext";
+      li.appendChild(ext);
       const date = document.createElement("span");
       date.className = "date";
       date.textContent = t("updir");
@@ -259,8 +290,21 @@ function render(side) {
       li.appendChild(mark);
       const name = document.createElement("span");
       name.className = "name";
-      name.textContent = e.name;
-      li.appendChild(name);
+      const dot = e.isDir ? -1 : e.name.lastIndexOf(".");
+      if (dot > 0) {
+        name.textContent = e.name.substring(0, dot);
+        const ext = document.createElement("span");
+        ext.className = "ext";
+        ext.textContent = e.name.substring(dot + 1);
+        li.appendChild(name);
+        li.appendChild(ext);
+      } else {
+        name.textContent = e.name;
+        const ext = document.createElement("span");
+        ext.className = "ext";
+        li.appendChild(name);
+        li.appendChild(ext);
+      }
       const size = document.createElement("span");
       size.className = "size";
       size.textContent = e.isDir ? "" : fmtSize(e.size);
@@ -280,6 +324,18 @@ function render(side) {
       ev.preventDefault();
       openRow(side, idx);
     });
+    if (row.kind !== "parent") {
+      li.addEventListener("mouseenter", (ev) => {
+        showNameTooltip(li, row.entry.name, 0, true, ev);
+      });
+      li.addEventListener("mousemove", (ev) => {
+        if (nameTooltip.style.display === "block") {
+          nameTooltip.style.left = Math.min(ev.clientX + 12, window.innerWidth - nameTooltip.offsetWidth - 8) + "px";
+          nameTooltip.style.top = (ev.clientY + 18) + "px";
+        }
+      });
+      li.addEventListener("mouseleave", hideNameTooltip);
+    }
 
     list.appendChild(li);
   });
@@ -303,6 +359,13 @@ function select(side, idx) {
 
   const el = listItems(side)[idx];
   if (el) el.scrollIntoView({ block: "nearest" });
+
+  hideNameTooltip();
+  const row = rows[idx];
+  if (row && row.kind !== "parent") {
+    showNameTooltip(el, row.entry.name, 2500);
+  }
+
   updateStatus();
 }
 
@@ -892,6 +955,321 @@ async function helpModal() {
   showModal(t("help.title"), "pre", `${t("help.text")}\n\n${t("help.version")}: ${v}`, true);
 }
 
+function fileSearchDialog() {
+  lastFocused = document.activeElement;
+  modalTitle.textContent = t("searchFiles.title");
+  modalBody.innerHTML = "";
+  modalActions.innerHTML = "";
+  modalEl.classList.add("search-modal");
+  const origClose = closeModal;
+  const cleanup = () => modalEl.classList.remove("search-modal");
+  const doClose = () => {
+    cleanup();
+    origClose();
+  };
+
+  const activePath = state[activeSide].path || "";
+
+  const mkRow = (labelKey, input) => {
+    const row = document.createElement("div");
+    row.className = "row";
+    const lab = document.createElement("label");
+    lab.textContent = t(labelKey);
+    lab.style.minWidth = "90px";
+    row.appendChild(lab);
+    row.appendChild(input);
+    return row;
+  };
+
+  const baseInput = document.createElement("input");
+  baseInput.type = "text";
+  baseInput.value = activePath;
+  baseInput.style.flex = "1";
+  baseInput.autocomplete = "off";
+  modalBody.appendChild(mkRow("searchFiles.basePath", baseInput));
+
+  const exclInput = document.createElement("input");
+  exclInput.type = "text";
+  exclInput.placeholder = t("searchFiles.exclusionsHint");
+  exclInput.style.flex = "1";
+  exclInput.autocomplete = "off";
+  modalBody.appendChild(mkRow("searchFiles.exclusions", exclInput));
+
+  const patternInput = document.createElement("input");
+  patternInput.type = "text";
+  patternInput.placeholder = t("searchFiles.patternHint");
+  patternInput.style.flex = "1";
+  patternInput.autocomplete = "off";
+  modalBody.appendChild(mkRow("searchFiles.pattern", patternInput));
+
+  const modeRow = document.createElement("div");
+  modeRow.className = "row";
+  const globRadio = document.createElement("input");
+  globRadio.type = "radio";
+  globRadio.name = "fileMode";
+  globRadio.value = "glob";
+  globRadio.checked = true;
+  globRadio.id = "file-mode-glob";
+  const globLab = document.createElement("label");
+  globLab.htmlFor = "file-mode-glob";
+  globLab.textContent = t("searchFiles.glob");
+  globLab.style.marginRight = "12px";
+  const reRadio = document.createElement("input");
+  reRadio.type = "radio";
+  reRadio.name = "fileMode";
+  reRadio.value = "regexp";
+  reRadio.id = "file-mode-re";
+  const reLab = document.createElement("label");
+  reLab.htmlFor = "file-mode-re";
+  reLab.textContent = t("searchFiles.regexp");
+  modeRow.appendChild(globRadio);
+  modeRow.appendChild(globLab);
+  modeRow.appendChild(reRadio);
+  modeRow.appendChild(reLab);
+  modalBody.appendChild(modeRow);
+
+  const optsRow = document.createElement("div");
+  optsRow.className = "row";
+  const igCase = document.createElement("input");
+  igCase.type = "checkbox";
+  igCase.checked = true;
+  igCase.id = "search-igcase";
+  const igLab = document.createElement("label");
+  igLab.htmlFor = "search-igcase";
+  igLab.textContent = t("searchFiles.ignoreCase");
+  igLab.style.marginRight = "12px";
+  const rec = document.createElement("input");
+  rec.type = "checkbox";
+  rec.checked = true;
+  rec.id = "search-rec";
+  const recLab = document.createElement("label");
+  recLab.htmlFor = "search-rec";
+  recLab.textContent = t("searchFiles.recursive");
+  optsRow.appendChild(igCase);
+  optsRow.appendChild(igLab);
+  optsRow.appendChild(rec);
+  optsRow.appendChild(recLab);
+  modalBody.appendChild(optsRow);
+
+  const sep1 = document.createElement("hr");
+  modalBody.appendChild(sep1);
+
+  const contentEnable = document.createElement("input");
+  contentEnable.type = "checkbox";
+  contentEnable.id = "search-content-enable";
+  const contentEnableLab = document.createElement("label");
+  contentEnableLab.htmlFor = "search-content-enable";
+  contentEnableLab.textContent = t("searchFiles.contentEnable");
+  const contentEnableRow = document.createElement("div");
+  contentEnableRow.className = "row";
+  contentEnableRow.appendChild(contentEnable);
+  contentEnableRow.appendChild(contentEnableLab);
+  modalBody.appendChild(contentEnableRow);
+
+  const contentPanel = document.createElement("div");
+  contentPanel.style.opacity = "0.5";
+  contentPanel.style.pointerEvents = "none";
+  const contentInput = document.createElement("input");
+  contentInput.type = "text";
+  contentInput.style.flex = "1";
+  contentInput.autocomplete = "off";
+  const contentRow = mkRow("searchFiles.contentPattern", contentInput);
+  contentPanel.appendChild(contentRow);
+  const cModeRow = document.createElement("div");
+  cModeRow.className = "row";
+  const cTextRadio = document.createElement("input");
+  cTextRadio.type = "radio";
+  cTextRadio.name = "contentMode";
+  cTextRadio.value = "text";
+  cTextRadio.checked = true;
+  cTextRadio.id = "c-mode-text";
+  const cTextLab = document.createElement("label");
+  cTextLab.htmlFor = "c-mode-text";
+  cTextLab.textContent = t("searchFiles.contentText");
+  cTextLab.style.marginRight = "12px";
+  const cReRadio = document.createElement("input");
+  cReRadio.type = "radio";
+  cReRadio.name = "contentMode";
+  cReRadio.value = "regexp";
+  cReRadio.id = "c-mode-re";
+  const cReLab = document.createElement("label");
+  cReLab.htmlFor = "c-mode-re";
+  cReLab.textContent = t("searchFiles.contentRegexp");
+  cModeRow.appendChild(cTextRadio);
+  cModeRow.appendChild(cTextLab);
+  cModeRow.appendChild(cReRadio);
+  cModeRow.appendChild(cReLab);
+  contentPanel.appendChild(cModeRow);
+  const cOptsRow = document.createElement("div");
+  cOptsRow.className = "row";
+  const cIg = document.createElement("input");
+  cIg.type = "checkbox";
+  cIg.checked = true;
+  cIg.id = "search-c-igcase";
+  const cIgLab = document.createElement("label");
+  cIgLab.htmlFor = "search-c-igcase";
+  cIgLab.textContent = t("searchFiles.ignoreCase");
+  cOptsRow.appendChild(cIg);
+  cOptsRow.appendChild(cIgLab);
+  contentPanel.appendChild(cOptsRow);
+  modalBody.appendChild(contentPanel);
+
+  contentEnable.addEventListener("change", () => {
+    const en = contentEnable.checked;
+    contentPanel.style.opacity = en ? "1" : "0.5";
+    contentPanel.style.pointerEvents = en ? "auto" : "none";
+  });
+
+  const sep2 = document.createElement("hr");
+  modalBody.appendChild(sep2);
+
+  const resultsLabel = document.createElement("div");
+  resultsLabel.textContent = t("searchFiles.results");
+  resultsLabel.style.fontWeight = "bold";
+  modalBody.appendChild(resultsLabel);
+
+  const results = document.createElement("ul");
+  results.className = "fav-list search-results";
+  results.tabIndex = 0;
+  results.style.minWidth = "auto";
+  results.style.maxWidth = "none";
+  results.style.width = "100%";
+  results.style.minHeight = "120px";
+  results.style.maxHeight = "220px";
+  modalBody.appendChild(results);
+
+  const hint = document.createElement("div");
+  hint.className = "hint";
+  hint.textContent = "";
+  modalBody.appendChild(hint);
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.textContent = t("btn.cancel");
+  cancelBtn.addEventListener("mousedown", doClose);
+  modalActions.appendChild(cancelBtn);
+
+  const searchBtn = document.createElement("button");
+  searchBtn.textContent = t("searchFiles.search");
+  searchBtn.className = "primary";
+  modalActions.appendChild(searchBtn);
+
+  overlay.classList.add("open");
+  patternInput.focus();
+
+  const chooseResult = async (idx) => {
+    const path = results.children[idx]?.dataset?.path;
+    if (!path) return;
+    doClose();
+    const isDir = await invoke("path_info", { path }).then((i) => i.isDir).catch(() => false);
+    if (isDir) {
+      await loadDir(activeSide, path);
+    } else {
+      const slash = path.includes("\\") ? "\\" : "/";
+      const parent = path.substring(0, path.lastIndexOf(slash)) || "/";
+      const name = path.substring(path.lastIndexOf(slash) + 1);
+      await loadDir(activeSide, parent);
+      const rows = state[activeSide].rows || [];
+      const sel = rows.findIndex((r) => r.kind === "item" && r.entry.name === name);
+      if (sel >= 0) select(activeSide, sel);
+    }
+  };
+
+  results.addEventListener("keydown", (ev) => {
+    const items = results.querySelectorAll("li:not(.empty)");
+    if (items.length === 0) return;
+    let sel = Array.from(items).findIndex((li) => li.classList.contains("selected"));
+    if (ev.key === "ArrowDown") {
+      ev.preventDefault();
+      sel = Math.min(items.length - 1, sel + 1);
+      items.forEach((li, i) => li.classList.toggle("selected", i === sel));
+      items[sel].scrollIntoView({ block: "nearest" });
+    } else if (ev.key === "ArrowUp") {
+      ev.preventDefault();
+      sel = Math.max(0, sel - 1);
+      items.forEach((li, i) => li.classList.toggle("selected", i === sel));
+      items[sel].scrollIntoView({ block: "nearest" });
+    } else if (ev.key === "Enter") {
+      ev.preventDefault();
+      const idx = Array.from(results.children).findIndex((li) => li.classList.contains("selected"));
+      if (idx >= 0) chooseResult(idx);
+    }
+  });
+
+  results.addEventListener("dblclick", (ev) => {
+    const li = ev.target.closest("li");
+    if (!li || li.classList.contains("empty")) return;
+    const idx = Array.from(results.children).indexOf(li);
+    chooseResult(idx);
+  });
+  results.addEventListener("mousedown", (ev) => {
+    const li = ev.target.closest("li");
+    if (!li || li.classList.contains("empty")) return;
+    results.querySelectorAll("li").forEach((x) => x.classList.remove("selected"));
+    li.classList.add("selected");
+  });
+
+  async function doSearch() {
+    const params = {
+      basePath: baseInput.value.trim(),
+      exclusions: exclInput.value.trim(),
+      pattern: patternInput.value,
+      patternMode: document.querySelector('input[name="fileMode"]:checked')?.value || "glob",
+      ignoreCase: igCase.checked,
+      recursive: rec.checked,
+      contentEnabled: contentEnable.checked,
+      contentPattern: contentInput.value,
+      contentMode: document.querySelector('input[name="contentMode"]:checked')?.value || "text",
+      contentIgnoreCase: cIg.checked,
+    };
+    if (!params.basePath) {
+      hint.textContent = t("err.noSelection");
+      return;
+    }
+    searchBtn.disabled = true;
+    searchBtn.textContent = t("searchFiles.searching");
+    results.innerHTML = "";
+    hint.textContent = "";
+    try {
+      const found = await invoke("search_files", { params });
+      results.innerHTML = "";
+      if (found.length === 0) {
+        const li = document.createElement("li");
+        li.className = "empty";
+        li.textContent = t("searchFiles.noResults");
+        results.appendChild(li);
+        hint.textContent = "";
+      } else {
+        found.forEach((p, i) => {
+          const li = document.createElement("li");
+          li.textContent = p;
+          li.dataset.path = p;
+          if (i === 0) li.classList.add("selected");
+          li.addEventListener("mousedown", (ev) => {
+            ev.preventDefault();
+            results.querySelectorAll("li").forEach((x) => x.classList.remove("selected"));
+            li.classList.add("selected");
+          });
+          li.addEventListener("dblclick", () => chooseResult(i));
+          results.appendChild(li);
+        });
+        hint.textContent = t("searchFiles.resultsCount", { count: found.length });
+        results.focus();
+      }
+    } catch (err) {
+      hint.textContent = String(err);
+    } finally {
+      searchBtn.disabled = false;
+      searchBtn.textContent = t("searchFiles.search");
+    }
+  }
+
+  searchBtn.addEventListener("mousedown", doSearch);
+  patternInput.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") { ev.preventDefault(); doSearch(); }
+  });
+
+}
+
 function quickMenu() {
   const items = [
     [t("menu.copy"), () => copyOrMove("copy")],
@@ -934,6 +1312,7 @@ function getModalFocusables() {
 }
 
 function showModal(title, kind, content, closable) {
+  hideNameTooltip();
   lastFocused = document.activeElement;
   modalTitle.textContent = title;
   modalBody.innerHTML = "";
@@ -960,6 +1339,7 @@ function closeModal() {
   overlay.classList.remove("open");
   modalBody.innerHTML = "";
   modalActions.innerHTML = "";
+  modalEl.classList.remove("search-modal");
   if (lastFocused && document.contains(lastFocused)) {
     lastFocused.focus();
   }
@@ -1559,6 +1939,7 @@ function openSearch(initial) {
   input.addEventListener("input", doSearch);
   fuzzy.addEventListener("change", () => {
     fuzzyPref = fuzzy.checked;
+    invoke("set_fuzzy_search", { fuzzySearch: fuzzy.checked }).catch(() => {});
     doSearch();
   });
   input.addEventListener("keydown", (ev) => {
@@ -1636,6 +2017,7 @@ document.querySelector("#btn-fav-apps").addEventListener("mousedown", () => {
     );
   });
 });
+document.querySelector("#btn-search").addEventListener("mousedown", () => fileSearchDialog());
 document.querySelector("#btn-settings").addEventListener("mousedown", () => {
   invoke("open_settings").catch((e) => alertModal(t("err.title"), String(e)));
 });
@@ -1807,6 +2189,57 @@ function handleFKey(key) {
   if (fn) fn();
 }
 
+/* ---------- Column resize ---------- */
+
+const COL_DEFAULTS = { name: 0, ext: 60, size: 80, date: 120 };
+let colWidths = { ...COL_DEFAULTS };
+
+function applyColWidths() {
+  rootEl.style.setProperty("--col-ext", colWidths.ext + "px");
+  rootEl.style.setProperty("--col-size", colWidths.size + "px");
+  rootEl.style.setProperty("--col-date", colWidths.date + "px");
+}
+
+function setupColumnResize() {
+  document.querySelectorAll(".panel-cols").forEach((cols) => {
+    const resizePairs = [
+      [cols.querySelector(".col-ext"), "ext"],
+      [cols.querySelector(".col-size"), "size"],
+      [cols.querySelector(".col-date"), "date"],
+    ];
+    resizePairs.forEach(([span, key]) => {
+      if (!span) return;
+      const handle = document.createElement("span");
+      handle.className = "col-resize";
+      span.parentNode.insertBefore(handle, span);
+      let startX, startW;
+      const onMove = (ev) => {
+        ev.preventDefault();
+        const diff = ev.clientX - startX;
+        colWidths[key] = Math.max(30, startW + diff);
+        applyColWidths();
+      };
+      const onUp = () => {
+        handle.classList.remove("active");
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        document.body.style.cursor = "";
+        invoke("set_column_widths", { columnWidths: colWidths }).catch(() => {});
+      };
+      handle.addEventListener("mousedown", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        startX = ev.clientX;
+        startW = colWidths[key];
+        handle.classList.add("active");
+        document.body.style.cursor = "col-resize";
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+      });
+    });
+  });
+}
+
 /* ---------- Init ---------- */
 
 async function init() {
@@ -1822,6 +2255,13 @@ async function init() {
     .listen("appearance-changed", () => syncAppearance())
     .catch(() => {});
   syncAppearance();
+
+  const appearance = await invoke("get_appearance").catch(() => null);
+  if (appearance && appearance.columnWidths) {
+    colWidths = { ...COL_DEFAULTS, ...appearance.columnWidths };
+  }
+  applyColWidths();
+  setupColumnResize();
 
   const home = await invoke("home_dir").catch(() => null);
   const start = home || (await invoke("list_dir", { path: "/" }).then((l) => l.path).catch(() => "/"));

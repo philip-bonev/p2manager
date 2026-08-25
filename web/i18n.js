@@ -15,13 +15,14 @@
 
 const STRINGS = {
   bg: {
-    "toolbar.back": "◄ Назад",
-    "toolbar.up": "▲ Нагоре",
-    "toolbar.home": "⌂ Старт",
-    "toolbar.refresh": "⟳ Обнови",
-    "toolbar.command": "▸ Команда",
-    "toolbar.fav": "★ Папки",
-    "toolbar.favApps": "☆ Приложения",
+    "toolbar.back": "Назад",
+    "toolbar.up": "Нагоре",
+    "toolbar.home": "Старт",
+    "toolbar.refresh": "Обнови",
+    "toolbar.command": "Команда",
+    "toolbar.fav": "Папки",
+    "toolbar.favApps": "Приложения",
+    "toolbar.search": "Търсене",
     "toolbar.settings": "Настройки",
     "toolbar.quit": "Изход",
     "title.back": "Назад",
@@ -31,6 +32,7 @@ const STRINGS = {
     "title.command": "Изпълнение на команда (Ctrl+↓)",
     "title.fav": "Любими папки (Ctrl+D)",
     "title.favApps": "Любими приложения (Ctrl+A)",
+    "title.search": "Търсене на файлове",
     "title.settings": "Настройки",
     "title.quit": "Изход (F10)",
     "fkey.f1": "Помощ",
@@ -49,6 +51,7 @@ const STRINGS = {
     "fkey.f12": "Инфо",
     "updir": "UP-DIR",
     "col.name": "Име",
+    "col.ext": "Разш.",
     "col.size": "Размер",
     "col.date": "Дата",
     "foot.items.one": "1 елемент",
@@ -164,6 +167,25 @@ const STRINGS = {
     "settings.editTerminal": "Отваряне в конзола",
     "settings.files": "Файлове",
     "settings.showHidden": "Показване на скрити файлове",
+    "searchFiles.title": "Търсене на файлове",
+    "searchFiles.basePath": "Път:",
+    "searchFiles.exclusions": "Изключения:",
+    "searchFiles.exclusionsHint": "Разделени с ; напр. .git;.svn;libs",
+    "searchFiles.pattern": "Шаблон:",
+    "searchFiles.patternHint": "напр. file*.sh или регулярен израз",
+    "searchFiles.glob": "Файлов шаблон (file*.sh)",
+    "searchFiles.regexp": "Регулярен израз",
+    "searchFiles.ignoreCase": "Без разлика в регистъра",
+    "searchFiles.recursive": "Рекурсивно",
+    "searchFiles.contentEnable": "Търсене в съдържанието",
+    "searchFiles.contentPattern": "Текст:",
+    "searchFiles.contentText": "Обикновен текст",
+    "searchFiles.contentRegexp": "Регулярен израз",
+    "searchFiles.search": "Търсене",
+    "searchFiles.results": "Резултати:",
+    "searchFiles.noResults": "Няма намерени файлове.",
+    "searchFiles.searching": "Търсене...",
+    "searchFiles.resultsCount": "{count} намерени",
     "dialog.pickApp": "Избери приложение",
     "btn.browse": "Избор…",
     "cmd.title": "Команда",
@@ -192,13 +214,14 @@ const STRINGS = {
     "sizePx": "{size} px",
   },
   en: {
-    "toolbar.back": "◄ Back",
-    "toolbar.up": "▲ Up",
-    "toolbar.home": "⌂ Home",
-    "toolbar.refresh": "⟳ Refresh",
-    "toolbar.command": "▸ Command",
-    "toolbar.fav": "★ Folders",
-    "toolbar.favApps": "☆ Apps",
+    "toolbar.back": "Back",
+    "toolbar.up": "Up",
+    "toolbar.home": "Home",
+    "toolbar.refresh": "Refresh",
+    "toolbar.command": "Command",
+    "toolbar.fav": "Folders",
+    "toolbar.favApps": "Apps",
+    "toolbar.search": "Search",
     "toolbar.settings": "Settings",
     "toolbar.quit": "Quit",
     "title.back": "Back",
@@ -208,6 +231,7 @@ const STRINGS = {
     "title.command": "Run command (Ctrl+↓)",
     "title.fav": "Favorite folders (Ctrl+D)",
     "title.favApps": "Favorite apps (Ctrl+A)",
+    "title.search": "File search",
     "title.settings": "Settings",
     "title.quit": "Quit (F10)",
     "fkey.f1": "Help",
@@ -226,6 +250,7 @@ const STRINGS = {
     "fkey.f12": "Info",
     "updir": "UP-DIR",
     "col.name": "Name",
+    "col.ext": "Ext",
     "col.size": "Size",
     "col.date": "Date",
     "foot.items.one": "1 item",
@@ -341,6 +366,25 @@ const STRINGS = {
     "settings.editTerminal": "Open in console/terminal",
     "settings.files": "Files",
     "settings.showHidden": "Show hidden files",
+    "searchFiles.title": "File search",
+    "searchFiles.basePath": "Path:",
+    "searchFiles.exclusions": "Exclusions:",
+    "searchFiles.exclusionsHint": "Separated by ; e.g. .git;.svn;libs",
+    "searchFiles.pattern": "Pattern:",
+    "searchFiles.patternHint": "e.g. file*.sh or regexp",
+    "searchFiles.glob": "File pattern (file*.sh)",
+    "searchFiles.regexp": "Regular expression",
+    "searchFiles.ignoreCase": "Case insensitive",
+    "searchFiles.recursive": "Recursive",
+    "searchFiles.contentEnable": "Search in file content",
+    "searchFiles.contentPattern": "Text:",
+    "searchFiles.contentText": "Plain text",
+    "searchFiles.contentRegexp": "Regular expression",
+    "searchFiles.search": "Search",
+    "searchFiles.results": "Results:",
+    "searchFiles.noResults": "No files found.",
+    "searchFiles.searching": "Searching...",
+    "searchFiles.resultsCount": "{count} found",
     "dialog.pickApp": "Choose an application",
     "btn.browse": "Browse…",
     "cmd.title": "Command",
@@ -401,7 +445,14 @@ export function tp(key, count) {
 
 export function applyStatic(scope = document) {
   scope.querySelectorAll("[data-i18n]").forEach((el) => {
-    el.textContent = t(el.dataset.i18n);
+    const txt = t(el.dataset.i18n);
+    const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (tw.nextNode()) nodes.push(tw.currentNode);
+    if (nodes.length > 0) {
+      nodes[0].textContent = txt;
+      for (let i = 1; i < nodes.length; i++) nodes[i].textContent = "";
+    }
     if (el.hasAttribute("data-i18n-title")) {
       el.title = t(el.dataset.i18nTitle);
     }
