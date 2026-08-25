@@ -791,16 +791,53 @@ async function renameSelected() {
   }
 }
 
+const VIEW_CHUNK = 256 * 1024;
+const VIEW_BUFFER = 64 * 1024;
+let viewState = null;
+
 async function viewFile() {
   const side = activeSide;
   const row = selectedRow(side);
   if (!row || row.kind === "parent") return;
   const src = selectedPath(side);
   try {
-    const content = await invoke("read_text_file", { path: src });
-    showModal(t("view.title", { name: row.entry.name }), "pre", content, true);
+    const info = await invoke("path_info", { path: src }).catch(() => null);
+    const fileSize = info ? info.size : 0;
+    const firstChunk = await invoke("read_file_chunk", { path: src, offset: 0, limit: VIEW_CHUNK });
+    viewState = { path: src, fileSize, loaded: firstChunk.length, text: firstChunk };
+    showModal(t("view.title", { name: row.entry.name }), "pre", firstChunk, true);
+    modalEl.classList.add("maximized");
+    const pre = modalBody.querySelector("pre");
+    if (pre) {
+      pre.tabIndex = 0;
+      pre.style.outline = "none";
+      pre.style.whiteSpace = "pre";
+      pre.style.overflow = "auto";
+      pre.addEventListener("scroll", onViewScroll);
+      pre.focus();
+    }
   } catch (err) {
     alertModal(t("err.title"), String(err));
+  }
+}
+
+async function onViewScroll(ev) {
+  if (!viewState) return;
+  const pre = ev.target;
+  const nearBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 200;
+  if (nearBottom && viewState.loaded < viewState.fileSize) {
+    const chunk = await invoke("read_file_chunk", {
+      path: viewState.path,
+      offset: viewState.loaded,
+      limit: VIEW_CHUNK,
+    });
+    if (chunk.length > 0) {
+      viewState.text += chunk;
+      viewState.loaded += chunk.length;
+      const pos = pre.scrollTop;
+      pre.textContent = viewState.text;
+      pre.scrollTop = pos;
+    }
   }
 }
 
@@ -1340,6 +1377,8 @@ function closeModal() {
   modalBody.innerHTML = "";
   modalActions.innerHTML = "";
   modalEl.classList.remove("search-modal");
+  modalEl.classList.remove("maximized");
+  viewState = null;
   if (lastFocused && document.contains(lastFocused)) {
     lastFocused.focus();
   }
@@ -2030,6 +2069,24 @@ document.querySelectorAll(".fkey").forEach((btn) => {
 
 document.addEventListener("keydown", (ev) => {
   if (overlay.classList.contains("open")) {
+    const pre = modalBody.querySelector("pre");
+    if (pre && pre.scrollHeight > pre.clientHeight) {
+      const scrollKeys = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End", " "];
+      if (scrollKeys.includes(ev.key)) {
+        ev.preventDefault();
+        const step = 40;
+        if (ev.key === "ArrowUp") pre.scrollTop -= step;
+        else if (ev.key === "ArrowDown") pre.scrollTop += step;
+        else if (ev.key === "ArrowLeft") pre.scrollLeft -= step;
+        else if (ev.key === "ArrowRight") pre.scrollLeft += step;
+        else if (ev.key === "PageUp") pre.scrollTop -= pre.clientHeight;
+        else if (ev.key === "PageDown") pre.scrollTop += pre.clientHeight;
+        else if (ev.key === "Home") pre.scrollTop = 0;
+        else if (ev.key === "End") pre.scrollTop = pre.scrollHeight;
+        else if (ev.key === " ") pre.scrollTop += pre.clientHeight;
+        return;
+      }
+    }
     if (ev.key === "Escape") {
       ev.preventDefault();
       if (progressCtrl) {

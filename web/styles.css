@@ -583,6 +583,10 @@ body {
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .modal-body input[type="text"] {
@@ -599,8 +603,12 @@ body {
 
 .modal-body pre {
   font-family: inherit;
-  white-space: pre-wrap;
-  word-break: break-word;
+  white-space: pre;
+  overflow: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
 }
 
 .modal-body table.info {

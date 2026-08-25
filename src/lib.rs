@@ -890,10 +890,28 @@ fn read_text_file(path: String) -> Result<String, String> {
     let data = fs::read(Path::new(&path))
         .map_err(|e| format!("Не може да се прочете файлът {}: {}", path, e))?;
     let capped = if data.len() > 1_000_000 { &data[..1_000_000] } else { &data[..] };
-    match std::str::from_utf8(capped) {
-        Ok(s) => Ok(s.to_string()),
-        Err(_) => Err("Бинарен файл — не може да се прегледа като текст.".to_string()),
+    Ok(String::from_utf8_lossy(capped).to_string())
+}
+
+#[tauri::command]
+fn read_file_chunk(path: String, offset: u64, limit: u64) -> Result<String, String> {
+    let meta = fs::metadata(Path::new(&path))
+        .map_err(|e| format!("Не може да се прочете файлът {}: {}", path, e))?;
+    let file_size = meta.len();
+    if offset >= file_size {
+        return Ok(String::new());
     }
+    let end = std::cmp::min(offset + limit, file_size);
+    let len = (end - offset) as usize;
+    let mut buf = vec![0u8; len];
+    let mut f = fs::File::open(Path::new(&path))
+        .map_err(|e| format!("Не може да се отвори файлът {}: {}", path, e))?;
+    use std::io::{Read, Seek, SeekFrom};
+    f.seek(SeekFrom::Start(offset))
+        .map_err(|e| format!("Грешка при позициониране: {}", e))?;
+    f.read_exact(&mut buf)
+        .map_err(|e| format!("Грешка при четене: {}", e))?;
+    Ok(String::from_utf8_lossy(&buf).to_string())
 }
 
 #[tauri::command]
@@ -1549,6 +1567,7 @@ pub fn run() {
             get_copy_progress,
             get_app_version,
             read_text_file,
+            read_file_chunk,
             path_info,
             open_path,
             edit_path,
