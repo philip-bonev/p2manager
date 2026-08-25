@@ -376,6 +376,28 @@ fn make_dir(parent: String, name: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn rename_path(path: String, new_name: String) -> Result<String, String> {
+    let new_name = new_name.trim().to_string();
+    if new_name.is_empty() {
+        return Err("Името не може да е празно.".to_string());
+    }
+    if new_name.contains('/') || new_name.contains('\\') {
+        return Err("Името съдържа невалидни символи.".to_string());
+    }
+    let src = PathBuf::from(&path);
+    if !src.exists() {
+        return Err(format!("Не съществува: {}", path));
+    }
+    let parent = src.parent().ok_or_else(|| "Невалиден път.".to_string())?;
+    let dest = parent.join(&new_name);
+    if dest.exists() {
+        return Err(format!("„{}“ вече съществува.", new_name));
+    }
+    fs::rename(&src, &dest).map_err(|e| format!("Грешка при преименуване на {}: {}", path, e))?;
+    Ok(dest.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 fn delete_path(path: String) -> Result<(), String> {
     let p = PathBuf::from(&path);
     let meta = fs::metadata(&p).map_err(|e| format!("Грешка при четене на {}: {}", path, e))?;
@@ -1251,6 +1273,7 @@ pub fn run() {
             list_dir,
             home_dir,
             make_dir,
+            rename_path,
             delete_path,
             copy_path,
             move_path,

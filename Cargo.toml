@@ -1,6 +1,6 @@
 [package]
 name = "p2manager"
-version = "1.0.6"
+version = "1.0.7"
 description = "Two Panel File Manager."
 authors = ["you"]
 edition = "2021"

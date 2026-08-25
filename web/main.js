@@ -704,6 +704,30 @@ async function newFolder() {
   }
 }
 
+async function renameSelected() {
+  const side = activeSide;
+  const row = selectedRow(side);
+  if (!row || row.kind === "parent") {
+    alertModal(t("err.title"), t("err.noSelection"));
+    return;
+  }
+  const oldPath = selectedPath(side);
+  const oldName = row.entry.name;
+  const newName = await promptModal(t("rename.title"), t("rename.prompt", { name: oldName }), oldName);
+  if (newName == null) return;
+  const trimmed = newName.trim();
+  if (!trimmed || trimmed === oldName) return;
+  try {
+    await invoke("rename_path", { path: oldPath, newName: trimmed });
+    await loadDir(side, state[side].path);
+    const rows = state[side].rows || [];
+    const idx = rows.findIndex((r) => r.kind === "item" && r.entry.name === trimmed);
+    if (idx >= 0) select(side, idx);
+  } catch (err) {
+    alertModal(t("err.title"), String(err));
+  }
+}
+
 async function viewFile() {
   const side = activeSide;
   const row = selectedRow(side);
@@ -1594,6 +1618,24 @@ document.querySelector("#btn-home").addEventListener("mousedown", async () => {
   if (home) loadDir(activeSide, home);
 });
 document.querySelector("#btn-refresh").addEventListener("mousedown", () => refresh(activeSide));
+document.querySelector("#btn-command").addEventListener("mousedown", () => runCommandModal());
+document.querySelector("#btn-fav").addEventListener("mousedown", () => {
+  favoritesModal().then((p) => {
+    if (p) loadDir(activeSide, p);
+  });
+});
+document.querySelector("#btn-fav-apps").addEventListener("mousedown", () => {
+  favAppsModal().then((appPath) => {
+    if (!appPath) return;
+    const row = selectedRow(activeSide);
+    const file = row && row.kind !== "parent" ? selectedPath(activeSide) : "";
+    const q = (p) => (/[\s"']/.test(p) ? `"${p.replace(/"/g, '\\"')}"` : p);
+    const command = file ? `${q(appPath)} ${q(file)}` : appPath;
+    invoke("run_command", { command, inTerminal: false, cwd: state[activeSide].path || "" }).catch((err) =>
+      alertModal(t("err.title"), String(err))
+    );
+  });
+});
 document.querySelector("#btn-settings").addEventListener("mousedown", () => {
   invoke("open_settings").catch((e) => alertModal(t("err.title"), String(e)));
 });
@@ -1758,7 +1800,7 @@ function handleFKey(key) {
     F8: deleteSelected,
     F9: quickMenu,
     F10: quitApp,
-    F11: () => refresh(activeSide),
+    F11: renameSelected,
     F12: fileInfo,
   };
   const fn = map[key];
