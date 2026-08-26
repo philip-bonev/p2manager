@@ -1105,9 +1105,12 @@ fn edit_path(path: String) -> Result<(), String> {
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     let result = default_editor_command(&path).spawn();
 
-    result
-        .map(|_| ())
-        .map_err(|e| format!("Грешка при редакция на {}: {}", path, e))
+    #[cfg(not(target_os = "windows"))]
+    {
+        result
+            .map(|_| ())
+            .map_err(|e| format!("Грешка при редакция на {}: {}", path, e))
+    }
 }
 
 #[tauri::command]
