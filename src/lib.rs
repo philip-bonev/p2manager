@@ -1511,6 +1511,7 @@ fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
         .title("Настройки")
         .inner_size(360.0, 620.0)
         .resizable(false)
+        .visible(true)
         .build()
         .map_err(|e| format!("Грешка при отваряне на настройките: {}", e))?;
     Ok(())

@@ -17,14 +17,17 @@ import { t, applyStatic } from "/i18n.js";
 
 const { invoke } = window.__TAURI__.core;
 const { open: openDialog } = window.__TAURI__.dialog;
-const { getCurrentWindow, PhysicalSize } = window.__TAURI__.window;
+const windowApi = window.__TAURI__.window;
+const getCurrentWindow = windowApi ? windowApi.getCurrentWindow : null;
+const PhysicalSize = windowApi ? windowApi.PhysicalSize : null;
 
 document.documentElement.classList.add("settings-root");
 
-const appWindow = getCurrentWindow();
+const appWindow = getCurrentWindow ? getCurrentWindow() : null;
 let fitDebounce = null;
 
 async function fitWindow() {
+  if (!appWindow || !PhysicalSize) return;
   try {
     const contentW = document.documentElement.scrollWidth;
     const inner = await appWindow.innerSize();
@@ -96,40 +99,48 @@ function setControlValue(appearance) {
 
 async function init() {
   applyStatic();
-  const appearance = await invoke("get_appearance").catch(() => null);
-  if (!appearance) return;
-  setControlValue(appearance);
-  applyAppearance(appearance);
+  try {
+    const appearance = await invoke("get_appearance");
+    if (!appearance) return;
+    setControlValue(appearance);
+    applyAppearance(appearance);
+  } catch {}
 }
 
 themeRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
     if (!radio.checked) return;
-    const appearance = await invoke("set_theme", { theme: radio.value }).catch(() => null);
-    if (appearance) applyAppearance(appearance);
+    try {
+      const appearance = await invoke("set_theme", { theme: radio.value });
+      if (appearance) applyAppearance(appearance);
+    } catch {}
   });
 });
 
 fontSelect.addEventListener("change", async () => {
-  const appearance = await invoke("set_font", { font: fontSelect.value }).catch(() => null);
-  if (appearance) applyAppearance(appearance);
+  try {
+    const appearance = await invoke("set_font", { font: fontSelect.value });
+    if (appearance) applyAppearance(appearance);
+  } catch {}
 });
 
 sizeSelect.addEventListener("change", async () => {
-  const appearance = await invoke("set_font_size", { fontSize: Number(sizeSelect.value) }).catch(() => null);
-  if (appearance) applyAppearance(appearance);
+  try {
+    const appearance = await invoke("set_font_size", { fontSize: Number(sizeSelect.value) });
+    if (appearance) applyAppearance(appearance);
+  } catch {}
 });
 
 let diffDebounce = null;
 diffCommand.addEventListener("input", () => {
   clearTimeout(diffDebounce);
   diffDebounce = setTimeout(async () => {
-    await invoke("set_diff_command", { command: diffCommand.value }).catch(() => {});
+    try { await invoke("set_diff_command", { command: diffCommand.value }); } catch {}
   }, 400);
 });
 
 diffTerminal.addEventListener("change", async () => {
-  await invoke("set_diff_in_terminal", { inTerminal: diffTerminal.checked }).catch(() => {});
+  try { await invoke("set_diff_in_terminal", { inTerminal: diffTerminal.checked }); } catch {}
 });
 
 function quotePath(p) {
@@ -138,16 +149,18 @@ function quotePath(p) {
 
 function bindBrowse(btn, input, placeholder) {
   btn.addEventListener("mousedown", async () => {
-    const picked = await openDialog({ multiple: false, title: t("dialog.pickApp") }).catch(() => null);
-    if (!picked) return;
-    const path = Array.isArray(picked) ? picked[0] : picked;
-    const quoted = quotePath(path);
-    if (input.value.trim() === "" || input.value.includes("%1") || input.value.includes("%2")) {
-      input.value = `${quoted} ${placeholder}`.trim();
-    } else {
-      input.value = `${quoted}`;
-    }
-    input.dispatchEvent(new Event("input"));
+    try {
+      const picked = await openDialog({ multiple: false, title: t("dialog.pickApp") });
+      if (!picked) return;
+      const path = Array.isArray(picked) ? picked[0] : picked;
+      const quoted = quotePath(path);
+      if (input.value.trim() === "" || input.value.includes("%1") || input.value.includes("%2")) {
+        input.value = `${quoted} ${placeholder}`.trim();
+      } else {
+        input.value = `${quoted}`;
+      }
+      input.dispatchEvent(new Event("input"));
+    } catch {}
   });
 }
 
@@ -158,16 +171,16 @@ let editDebounce = null;
 editCommand.addEventListener("input", () => {
   clearTimeout(editDebounce);
   editDebounce = setTimeout(async () => {
-    await invoke("set_edit_command", { command: editCommand.value }).catch(() => {});
+    try { await invoke("set_edit_command", { command: editCommand.value }); } catch {}
   }, 400);
 });
 
 editTerminal.addEventListener("change", async () => {
-  await invoke("set_edit_in_terminal", { inTerminal: editTerminal.checked }).catch(() => {});
+  try { await invoke("set_edit_in_terminal", { inTerminal: editTerminal.checked }); } catch {}
 });
 
 showHidden.addEventListener("change", async () => {
-  await invoke("set_show_hidden", { showHidden: showHidden.checked }).catch(() => {});
+  try { await invoke("set_show_hidden", { showHidden: showHidden.checked }); } catch {}
 });
 
 init();
