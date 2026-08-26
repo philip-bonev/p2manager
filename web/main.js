@@ -1422,7 +1422,6 @@ function settingsModal() {
   body.appendChild(editTermCb);
 
   showModal(t("settings.title"), "append", body, true);
-  modalEl.classList.add("maximized");
 
   // Load current values
   invoke("get_appearance").then((a) => {
