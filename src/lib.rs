@@ -1507,11 +1507,15 @@ fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
         let _ = win.set_focus();
         return Ok(());
     }
-    tauri::WebviewWindowBuilder::new(&app, "settings", tauri::WebviewUrl::App("settings.html".into()))
-        .title("Настройки")
-        .inner_size(360.0, 620.0)
-        .resizable(false)
-        .visible(true)
+    let mut builder =
+        tauri::WebviewWindowBuilder::new(&app, "settings", tauri::WebviewUrl::App("settings.html".into()))
+            .title("Настройки")
+            .inner_size(360.0, 620.0)
+            .resizable(false);
+    if let Some(main_win) = app.get_webview_window("main") {
+        builder = builder.parent(&main_win).map_err(|e| e.to_string())?;
+    }
+    builder
         .build()
         .map_err(|e| format!("Грешка при отваряне на настройките: {}", e))?;
     Ok(())
