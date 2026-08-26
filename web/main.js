@@ -1307,6 +1307,205 @@ function fileSearchDialog() {
 
 }
 
+function settingsModal() {
+  const SIZES = [10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 28];
+  const body = document.createElement("div");
+
+  function mkH2(text) {
+    const h = document.createElement("h2");
+    h.textContent = text;
+    h.style.cssText = "font-size:var(--font-size,14px);color:var(--dir);margin:8px 0 4px";
+    return h;
+  }
+  function mkOpt(tag, attrs, text) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) el[k] = v;
+    if (text) {
+      const sp = document.createElement("span");
+      sp.textContent = text;
+      const lbl = document.createElement("label");
+      lbl.className = "opt";
+      lbl.appendChild(el);
+      lbl.appendChild(sp);
+      return lbl;
+    }
+    return el;
+  }
+  function mkRow(labelText, input) {
+    const row = document.createElement("div");
+    row.className = "row";
+    const lbl = document.createElement("label");
+    lbl.textContent = labelText;
+    row.appendChild(lbl);
+    if (input) row.appendChild(input);
+    return row;
+  }
+  function mkHint(text) {
+    const d = document.createElement("div");
+    d.className = "hint";
+    d.textContent = text;
+    return d;
+  }
+  function quotePath(p) {
+    return /[\s"']/.test(p) ? `"${p.replace(/"/g, '\\"')}"` : p;
+  }
+
+  // Theme
+  body.appendChild(mkH2(t("settings.theme")));
+  const themes = [
+    ["system", t("theme.system")],
+    ["light", t("theme.light")],
+    ["dark", t("theme.dark")],
+  ];
+  const themeName = "settings-theme-" + Date.now();
+  themes.forEach(([val, label]) => {
+    body.appendChild(mkOpt("input", { type: "radio", name: themeName, value: val }, label));
+  });
+  const themeRadios = body.querySelectorAll(`input[name="${themeName}"]`);
+
+  // Font
+  body.appendChild(mkH2(t("settings.font")));
+  const fontSelect = document.createElement("select");
+  [["default", t("font.default")], ["monospace", t("font.monospace")], ["serif", t("font.serif")], ["sans", t("font.sans")]].forEach(([v, l]) => {
+    const o = document.createElement("option");
+    o.value = v; o.textContent = l;
+    fontSelect.appendChild(o);
+  });
+  body.appendChild(mkRow(t("settings.fontFamily"), fontSelect));
+
+  // Font size
+  body.appendChild(mkH2(t("settings.fontSize")));
+  const sizeSelect = document.createElement("select");
+  SIZES.forEach((s) => {
+    const o = document.createElement("option");
+    o.value = String(s);
+    o.textContent = t("sizePx", { size: s });
+    sizeSelect.appendChild(o);
+  });
+  body.appendChild(mkRow(t("settings.sizeLabel"), sizeSelect));
+
+  // Show hidden
+  body.appendChild(mkH2(t("settings.files")));
+  const showHiddenCb = mkOpt("input", { type: "checkbox", id: "set-show-hidden" }, t("settings.showHidden"));
+  body.appendChild(showHiddenCb);
+
+  // Diff
+  body.appendChild(mkH2(t("settings.diff")));
+  const diffInput = document.createElement("input");
+  diffInput.type = "text"; diffInput.placeholder = "nvim -d";
+  diffInput.autocomplete = "off"; diffInput.autocorrect = "off";
+  diffInput.autocapitalize = "off"; diffInput.spellcheck = false;
+  const diffRow = mkRow(t("settings.diffCommand"), diffInput);
+  const diffBrowse = document.createElement("button");
+  diffBrowse.type = "button"; diffBrowse.textContent = t("btn.browse");
+  diffBrowse.style.cssText = "flex:0 0 auto;margin-left:8px;padding:4px 10px;border:1px solid var(--modal-border);border-radius:3px;background:var(--modal-input-bg);color:var(--modal-input-text);cursor:pointer;font-family:inherit;font-size:var(--font-size,14px)";
+  diffRow.appendChild(diffBrowse);
+  body.appendChild(diffRow);
+  body.appendChild(mkHint(t("settings.diffHint")));
+  const diffTermCb = mkOpt("input", { type: "checkbox", id: "set-diff-terminal" }, t("settings.diffTerminal"));
+  body.appendChild(diffTermCb);
+
+  // Edit
+  body.appendChild(mkH2(t("settings.edit")));
+  const editInput = document.createElement("input");
+  editInput.type = "text"; editInput.placeholder = "code -w";
+  editInput.autocomplete = "off"; editInput.autocorrect = "off";
+  editInput.autocapitalize = "off"; editInput.spellcheck = false;
+  const editRow = mkRow(t("settings.editCommand"), editInput);
+  const editBrowse = document.createElement("button");
+  editBrowse.type = "button"; editBrowse.textContent = t("btn.browse");
+  editBrowse.style.cssText = diffBrowse.style.cssText;
+  editRow.appendChild(editBrowse);
+  body.appendChild(editRow);
+  body.appendChild(mkHint(t("settings.editHint")));
+  const editTermCb = mkOpt("input", { type: "checkbox", id: "set-edit-terminal" }, t("settings.editTerminal"));
+  body.appendChild(editTermCb);
+
+  showModal(t("settings.title"), "append", body, true);
+  modalEl.classList.add("maximized");
+
+  // Load current values
+  invoke("get_appearance").then((a) => {
+    if (!a) return;
+    const r = body.querySelector(`input[name="${themeName}"][value="${a.theme}"]`);
+    if (r) r.checked = true;
+    fontSelect.value = a.font;
+    sizeSelect.value = String(a.fontSize);
+    diffInput.value = a.diffCommand || "";
+    diffTermCb.querySelector("input").checked = !!a.diffInTerminal;
+    editInput.value = a.editCommand || "";
+    editTermCb.querySelector("input").checked = !!a.editInTerminal;
+    showHiddenCb.querySelector("input").checked = a.showHidden !== false;
+  }).catch(() => {});
+
+  // Bind controls
+  themeRadios.forEach((radio) => {
+    radio.addEventListener("change", async () => {
+      if (!radio.checked) return;
+      try { await invoke("set_theme", { theme: radio.value }); } catch {}
+    });
+  });
+  fontSelect.addEventListener("change", async () => {
+    try { await invoke("set_font", { font: fontSelect.value }); } catch {}
+  });
+  sizeSelect.addEventListener("change", async () => {
+    try { await invoke("set_font_size", { fontSize: Number(sizeSelect.value) }); } catch {}
+  });
+  showHiddenCb.querySelector("input").addEventListener("change", async (ev) => {
+    try { await invoke("set_show_hidden", { showHidden: ev.target.checked }); } catch {}
+  });
+
+  let diffDebounce = null;
+  diffInput.addEventListener("input", () => {
+    clearTimeout(diffDebounce);
+    diffDebounce = setTimeout(async () => {
+      try { await invoke("set_diff_command", { command: diffInput.value }); } catch {}
+    }, 400);
+  });
+  diffTermCb.querySelector("input").addEventListener("change", async (ev) => {
+    try { await invoke("set_diff_in_terminal", { inTerminal: ev.target.checked }); } catch {}
+  });
+  diffBrowse.addEventListener("mousedown", async () => {
+    try {
+      const picked = await openDialog({ multiple: false, title: t("dialog.pickApp") });
+      if (!picked) return;
+      const path = Array.isArray(picked) ? picked[0] : picked;
+      const quoted = quotePath(path);
+      if (diffInput.value.trim() === "" || diffInput.value.includes("%1") || diffInput.value.includes("%2")) {
+        diffInput.value = `${quoted} %1 %2`.trim();
+      } else {
+        diffInput.value = quoted;
+      }
+      diffInput.dispatchEvent(new Event("input"));
+    } catch {}
+  });
+
+  let editDebounce = null;
+  editInput.addEventListener("input", () => {
+    clearTimeout(editDebounce);
+    editDebounce = setTimeout(async () => {
+      try { await invoke("set_edit_command", { command: editInput.value }); } catch {}
+    }, 400);
+  });
+  editTermCb.querySelector("input").addEventListener("change", async (ev) => {
+    try { await invoke("set_edit_in_terminal", { inTerminal: ev.target.checked }); } catch {}
+  });
+  editBrowse.addEventListener("mousedown", async () => {
+    try {
+      const picked = await openDialog({ multiple: false, title: t("dialog.pickApp") });
+      if (!picked) return;
+      const path = Array.isArray(picked) ? picked[0] : picked;
+      const quoted = quotePath(path);
+      if (editInput.value.trim() === "" || editInput.value.includes("%1")) {
+        editInput.value = `${quoted} %1`.trim();
+      } else {
+        editInput.value = quoted;
+      }
+      editInput.dispatchEvent(new Event("input"));
+    } catch {}
+  });
+}
+
 function quickMenu() {
   const items = [
     [t("menu.copy"), () => copyOrMove("copy")],
@@ -1359,6 +1558,8 @@ function showModal(title, kind, content, closable) {
     modalBody.appendChild(pre);
   } else if (kind === "html") {
     modalBody.innerHTML = content;
+  } else if (kind === "append") {
+    modalBody.appendChild(content);
   }
   modalActions.innerHTML = "";
   if (closable) {
@@ -2057,9 +2258,7 @@ document.querySelector("#btn-fav-apps").addEventListener("mousedown", () => {
   });
 });
 document.querySelector("#btn-search").addEventListener("mousedown", () => fileSearchDialog());
-document.querySelector("#btn-settings").addEventListener("mousedown", () => {
-  invoke("open_settings").catch((e) => alertModal(t("err.title"), String(e)));
-});
+document.querySelector("#btn-settings").addEventListener("mousedown", () => settingsModal());
 document.querySelector("#btn-quit").addEventListener("mousedown", quitApp);
 document.querySelector("#btn-back").addEventListener("mousedown", () => goUp(activeSide));
 

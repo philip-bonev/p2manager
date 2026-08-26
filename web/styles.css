@@ -873,48 +873,32 @@ body {
   overflow-y: auto;
 }
 
-.settings-page {
-  padding: 16px;
-  gap: 12px;
-  user-select: none;
-  overflow-y: auto;
-}
-
-html.settings-root {
-  overflow-y: auto;
-}
-
-.settings-page h1 {
-  font-size: calc(var(--font-size, 14px) + 2px);
-  color: var(--text);
-}
-
-.settings-page h2 {
+.modal-body h2 {
   font-size: var(--font-size, 14px);
   color: var(--dir);
   margin-top: 8px;
 }
 
-.settings-page .opt {
+.modal-body .opt {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  padding: 4px 10px;
   cursor: pointer;
   color: var(--text);
 }
 
-.settings-page .opt:hover {
+.modal-body .opt:hover {
   background: var(--selected-bg);
   color: var(--selected-text);
 }
 
-.settings-page input[type="radio"] {
+.modal-body input[type="radio"] {
   accent-color: var(--dir);
   cursor: pointer;
 }
 
-.settings-page select {
+.modal-body select {
   font-family: inherit;
   font-size: var(--font-size, 14px);
   padding: 4px 8px;
@@ -926,26 +910,13 @@ html.settings-root {
   cursor: pointer;
 }
 
-.settings-page input[type="text"] {
-  font-family: inherit;
-  font-size: var(--font-size, 14px);
-  width: 260px;
-  min-width: 260px;
-  padding: 4px 8px;
-  margin-left: 10px;
-  border: 1px solid var(--modal-border);
-  border-radius: 3px;
-  background: var(--modal-input-bg);
-  color: var(--modal-input-text);
-}
-
-.settings-page .hint {
+.modal-body .hint {
   font-size: 12px;
-  color: var(--text-dim, #888);
-  padding: 4px 10px 8px;
+  color: var(--dim);
+  padding: 2px 10px 6px;
 }
 
-.settings-page .row button {
+.modal-body .row button {
   font-family: inherit;
   font-size: var(--font-size, 14px);
   flex: 0 0 auto;
@@ -958,18 +929,10 @@ html.settings-root {
   cursor: pointer;
 }
 
-.settings-page .row button:hover {
+.modal-body .row button:hover {
   filter: brightness(1.15);
 }
 
-.settings-page .row {
-  display: flex;
-  align-items: center;
-  padding: 4px 10px;
-  color: var(--text);
-  flex-wrap: wrap;
-}
-
-.settings-page .row label {
+.modal-body .row label {
   white-space: nowrap;
 }

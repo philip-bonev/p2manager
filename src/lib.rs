@@ -1501,26 +1501,6 @@ fn set_column_widths(column_widths: ColumnWidths, _app: tauri::AppHandle) -> Res
     Ok(settings)
 }
 
-#[tauri::command]
-fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("settings") {
-        let _ = win.set_focus();
-        return Ok(());
-    }
-    let mut builder =
-        tauri::WebviewWindowBuilder::new(&app, "settings", tauri::WebviewUrl::App("settings.html".into()))
-            .title("Настройки")
-            .inner_size(360.0, 620.0)
-            .resizable(false);
-    if let Some(main_win) = app.get_webview_window("main") {
-        builder = builder.parent(&main_win).map_err(|e| e.to_string())?;
-    }
-    builder
-        .build()
-        .map_err(|e| format!("Грешка при отваряне на настройките: {}", e))?;
-    Ok(())
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1597,8 +1577,7 @@ pub fn run() {
             get_favorites,
             set_favorites,
             get_fav_apps,
-            set_fav_apps,
-            open_settings
+            set_fav_apps
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
