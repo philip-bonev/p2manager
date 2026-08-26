@@ -43,7 +43,7 @@ F1 help, F2 diff (compare files), F3 view file, F4 edit, F5 copy, F6 move, F7 ne
 - **Style:** spaces only, 4 spaces = 1 tab. Match surrounding code; no decorative comments.
 - **WebKit Bug (macOS):** WKWebView can fire spurious `click` events, e.g. when a drag-select ends on a different element. Use `mousedown` for dismiss/tab/single-press UI (overlay backdrops, modal buttons) and avoid relying on `click` for anything near selectable text. Checkboxes use `change`.
 - **No new Rust crates or JS packages** unless explicitly requested.
-- **No Rust toolchain on dev machine:** `cargo`/`rustc` may be unavailable — never assume Rust compiles locally; review manually and ask the user to run `cargo check`.
+
 
 ## 8. Modal Focus Rules
 - Tab/Shift+Tab while a modal is open must cycle ONLY through visible focusable elements inside the active modal (`.modal`), never background controls. Implemented via `getModalFocusables()` + the `keydown` handler; `preventDefault()` on Tab.

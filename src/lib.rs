@@ -150,10 +150,10 @@ fn load_settings() -> AppSettings {
 fn save_settings(settings: &AppSettings) -> Result<(), String> {
     let path = settings_path();
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("Грешка при запис на настройките: {}", e))?;
+        fs::create_dir_all(parent).map_err(|e| format!("Error writing settings: {}", e))?;
     }
     let json = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
-    fs::write(&path, json).map_err(|e| format!("Грешка при запис на настройките: {}", e))
+    fs::write(&path, json).map_err(|e| format!("Error writing settings: {}", e))
 }
 
 fn modified_secs(meta: &fs::Metadata) -> u64 {
@@ -165,7 +165,7 @@ fn modified_secs(meta: &fs::Metadata) -> u64 {
 }
 
 fn entry_from_path(path: &Path) -> Result<FileEntry, String> {
-    let meta = fs::metadata(path).map_err(|e| format!("Грешка при четене на {}: {}", path.display(), e))?;
+    let meta = fs::metadata(path).map_err(|e| format!("Error reading {}: {}", path.display(), e))?;
     let name = path
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
@@ -201,15 +201,15 @@ fn is_hidden(path: &Path) -> bool {
 
 fn copy_recursive(src: &Path, dst: &Path) -> Result<(), String> {
     if src.is_dir() {
-        fs::create_dir_all(dst).map_err(|e| format!("Грешка при създаване на {}: {}", dst.display(), e))?;
-        for entry in fs::read_dir(src).map_err(|e| format!("Грешка при четене на {}: {}", src.display(), e))? {
+        fs::create_dir_all(dst).map_err(|e| format!("Error creating {}: {}", dst.display(), e))?;
+        for entry in fs::read_dir(src).map_err(|e| format!("Error reading {}: {}", src.display(), e))? {
             let entry = entry.map_err(|e| e.to_string())?;
             let child_dst = dst.join(entry.file_name());
             copy_recursive(&entry.path(), &child_dst)?;
         }
     } else {
         fs::copy(src, dst)
-            .map_err(|e| format!("Грешка при копиране на {}: {}", src.display(), e))?;
+            .map_err(|e| format!("Error copying {}: {}", src.display(), e))?;
     }
     Ok(())
 }
@@ -265,7 +265,7 @@ fn build_file_matcher(pattern: &str, mode: &str, ignore_case: bool) -> Result<Op
     builder
         .build()
         .map(Some)
-        .map_err(|e| format!("Невалиден шаблон: {}", e))
+        .map_err(|e| format!("Invalid pattern: {}", e))
 }
 
 fn build_content_matcher(
@@ -280,7 +280,7 @@ fn build_content_matcher(
     if mode == "regexp" {
         let mut builder = regex::RegexBuilder::new(pat);
         builder.case_insensitive(ignore_case);
-        let re = builder.build().map_err(|e| format!("Невалиден шаблон за съдържание: {}", e))?;
+        let re = builder.build().map_err(|e| format!("Invalid content pattern: {}", e))?;
         Ok((Some(re), None))
     } else {
         let plain = if ignore_case { pat.to_lowercase() } else { pat.to_string() };
@@ -428,12 +428,12 @@ fn copy_file_progress(
     cancel: &AtomicBool,
 ) -> Result<(), String> {
     let total = fs::metadata(src)
-        .map_err(|e| format!("Грешка при четене на {}: {}", src.display(), e))?
+        .map_err(|e| format!("Error reading {}: {}", src.display(), e))?
         .len();
     let mut src_file = fs::File::open(src)
-        .map_err(|e| format!("Грешка при отваряне на {}: {}", src.display(), e))?;
+        .map_err(|e| format!("Error opening {}: {}", src.display(), e))?;
     let mut dst_file = fs::File::create(dst)
-        .map_err(|e| format!("Грешка при създаване на {}: {}", dst.display(), e))?;
+        .map_err(|e| format!("Error creating {}: {}", dst.display(), e))?;
     let mut buf = vec![0u8; 1 << 20];
     let mut copied: u64 = 0;
     loop {
@@ -444,13 +444,13 @@ fn copy_file_progress(
         }
         let n = src_file
             .read(&mut buf)
-            .map_err(|e| format!("Грешка при четене на {}: {}", src.display(), e))?;
+            .map_err(|e| format!("Error reading {}: {}", src.display(), e))?;
         if n == 0 {
             break;
         }
         dst_file
             .write_all(&buf[..n])
-            .map_err(|e| format!("Грешка при запис в {}: {}", dst.display(), e))?;
+            .map_err(|e| format!("Error writing to {}: {}", dst.display(), e))?;
         copied += n as u64;
         if let Some(state) = app.try_state::<AppState>() {
             state.progress.lock().unwrap().insert(
@@ -479,9 +479,9 @@ fn copy_recursive_progress(
     }
     if src.is_dir() {
         fs::create_dir_all(dst)
-            .map_err(|e| format!("Грешка при създаване на {}: {}", dst.display(), e))?;
+            .map_err(|e| format!("Error creating {}: {}", dst.display(), e))?;
         for entry in
-            fs::read_dir(src).map_err(|e| format!("Грешка при четене на {}: {}", src.display(), e))?
+            fs::read_dir(src).map_err(|e| format!("Error reading {}: {}", src.display(), e))?
         {
             let entry = entry.map_err(|e| e.to_string())?;
             copy_recursive_progress(&entry.path(), &dst.join(entry.file_name()), app, id, cancel)?;
@@ -524,11 +524,11 @@ fn cleanup_partial(dest: &Path, is_dir: bool) {
 fn list_dir(path: String) -> Result<DirListing, String> {
     let dir = PathBuf::from(&path);
     if !dir.is_dir() {
-        return Err(format!("Не е директория: {}", path));
+        return Err(format!("Not a directory: {}", path));
     }
     let show_hidden = load_settings().show_hidden;
     let mut items = Vec::new();
-    for entry in fs::read_dir(&dir).map_err(|e| format!("Грешка при четене на {}: {}", path, e))? {
+    for entry in fs::read_dir(&dir).map_err(|e| format!("Error reading {}: {}", path, e))? {
         let entry = entry.map_err(|e| e.to_string())?;
         let p = entry.path();
         if !show_hidden && is_hidden(&p) {
@@ -558,7 +558,7 @@ fn list_dir(path: String) -> Result<DirListing, String> {
 async fn search_files(params: SearchParams) -> Result<Vec<String>, String> {
     let base = PathBuf::from(params.base_path.clone());
     if !base.is_dir() {
-        return Err(format!("Не е директория: {}", params.base_path));
+        return Err(format!("Not a directory: {}", params.base_path));
     }
     let exclusions: Vec<String> = params
         .exclusions
@@ -604,24 +604,24 @@ async fn search_files(params: SearchParams) -> Result<Vec<String>, String> {
 fn home_dir() -> Result<String, String> {
     home_dir_path()
         .map(|p| p.to_string_lossy().to_string())
-        .ok_or_else(|| "Не може да се определи домашната директория.".to_string())
+        .ok_or_else(|| "Cannot determine home directory.".to_string())
 }
 
 #[tauri::command]
 fn make_dir(parent: String, name: String) -> Result<(), String> {
     let name = name.trim();
     if name.is_empty() {
-        return Err("Името на папката не може да е празно.".to_string());
+        return Err("Folder name cannot be empty.".to_string());
     }
     if name.contains('/') || name.contains('\\') {
-        return Err("Името съдържа невалидни символи.".to_string());
+        return Err("Name contains invalid characters.".to_string());
     }
     let path = PathBuf::from(&parent).join(name);
     if path.exists() {
-        return Err(format!("„{}“ вече съществува.", name));
+        return Err(format!("\"{}\" already exists.", name));
     }
     fs::create_dir(&path)
-        .map_err(|e| format!("Грешка при създаване на папка „{}“: {}", name, e))?;
+        .map_err(|e| format!("Error creating folder \"{}\": {}", name, e))?;
     Ok(())
 }
 
@@ -629,34 +629,34 @@ fn make_dir(parent: String, name: String) -> Result<(), String> {
 fn rename_path(path: String, new_name: String) -> Result<String, String> {
     let new_name = new_name.trim().to_string();
     if new_name.is_empty() {
-        return Err("Името не може да е празно.".to_string());
+        return Err("Name cannot be empty.".to_string());
     }
     if new_name.contains('/') || new_name.contains('\\') {
-        return Err("Името съдържа невалидни символи.".to_string());
+        return Err("Name contains invalid characters.".to_string());
     }
     let src = PathBuf::from(&path);
     if !src.exists() {
-        return Err(format!("Не съществува: {}", path));
+        return Err(format!("Does not exist: {}", path));
     }
-    let parent = src.parent().ok_or_else(|| "Невалиден път.".to_string())?;
+    let parent = src.parent().ok_or_else(|| "Invalid path.".to_string())?;
     let dest = parent.join(&new_name);
     if dest.exists() {
-        return Err(format!("„{}“ вече съществува.", new_name));
+        return Err(format!("\"{}\" already exists.", new_name));
     }
-    fs::rename(&src, &dest).map_err(|e| format!("Грешка при преименуване на {}: {}", path, e))?;
+    fs::rename(&src, &dest).map_err(|e| format!("Error renaming {}: {}", path, e))?;
     Ok(dest.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 fn delete_path(path: String) -> Result<(), String> {
     let p = PathBuf::from(&path);
-    let meta = fs::metadata(&p).map_err(|e| format!("Грешка при четене на {}: {}", path, e))?;
+    let meta = fs::metadata(&p).map_err(|e| format!("Error reading {}: {}", path, e))?;
     let result = if meta.is_dir() {
         fs::remove_dir_all(&p)
     } else {
         fs::remove_file(&p)
     };
-    result.map_err(|e| format!("Грешка при изтриване на {}: {}", path, e))
+    result.map_err(|e| format!("Error deleting {}: {}", path, e))
 }
 
 #[tauri::command]
@@ -664,17 +664,17 @@ fn copy_path(src: String, dst_dir: String) -> Result<String, String> {
     let src_path = PathBuf::from(&src);
     let dst_path = PathBuf::from(&dst_dir);
     if !dst_path.is_dir() {
-        return Err(format!("Не е директория: {}", dst_dir));
+        return Err(format!("Not a directory: {}", dst_dir));
     }
     let name = src_path
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
-        .ok_or_else(|| "Невалиден изходен път.".to_string())?;
+        .ok_or_else(|| "Invalid source path.".to_string())?;
     if src_path.parent().map(|p| p == dst_path.as_path()).unwrap_or(false) {
-        return Err("Файлът вече е в тази папка.".to_string());
+        return Err("File is already in this folder.".to_string());
     }
     if is_descendant(&dst_path, &src_path) {
-        return Err("Не може да копирате папка в самата нея.".to_string());
+        return Err("Cannot copy a folder into itself.".to_string());
     }
     let dest = resolve_dest(&dst_path, &name);
     copy_recursive(&src_path, &dest)?;
@@ -686,17 +686,17 @@ fn move_path(src: String, dst_dir: String) -> Result<String, String> {
     let src_path = PathBuf::from(&src);
     let dst_path = PathBuf::from(&dst_dir);
     if !dst_path.is_dir() {
-        return Err(format!("Не е директория: {}", dst_dir));
+        return Err(format!("Not a directory: {}", dst_dir));
     }
     let name = src_path
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
-        .ok_or_else(|| "Невалиден изходен път.".to_string())?;
+        .ok_or_else(|| "Invalid source path.".to_string())?;
     if src_path.parent().map(|p| p == dst_path.as_path()).unwrap_or(false) {
-        return Err("Файлът вече е в тази папка.".to_string());
+        return Err("File is already in this folder.".to_string());
     }
     if is_descendant(&dst_path, &src_path) {
-        return Err("Не може да преместите папка в самата нея.".to_string());
+        return Err("Cannot move a folder into itself.".to_string());
     }
     let dest = resolve_dest(&dst_path, &name);
     match fs::rename(&src_path, &dest) {
@@ -709,7 +709,7 @@ fn move_path(src: String, dst_dir: String) -> Result<String, String> {
             } else {
                 fs::remove_file(&src_path)
             };
-            del.map_err(|e| format!("Копирано, но не може да се изтрие източникът: {}", e))?;
+            del.map_err(|e| format!("Copied, but source could not be deleted: {}", e))?;
             Ok(dest.to_string_lossy().to_string())
         }
     }
@@ -720,29 +720,29 @@ fn link_path(src: String, dst_dir: String, hard: bool) -> Result<String, String>
     let src_path = PathBuf::from(&src);
     let dst_path = PathBuf::from(&dst_dir);
     if !dst_path.is_dir() {
-        return Err(format!("Не е директория: {}", dst_dir));
+        return Err(format!("Not a directory: {}", dst_dir));
     }
     let name = src_path
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
-        .ok_or_else(|| "Невалиден изходен път.".to_string())?;
+        .ok_or_else(|| "Invalid source path.".to_string())?;
     let dest = resolve_dest(&dst_path, &name);
 
     if hard {
         fs::hard_link(&src_path, &dest).map_err(|e| {
-            format!("Грешка при създаване на hardlink на {}: {}", src_path.display(), e)
+            format!("Error creating hardlink of {}: {}", src_path.display(), e)
         })?;
     } else {
         #[cfg(unix)]
         {
             std::os::unix::fs::symlink(&src_path, &dest).map_err(|e| {
-                format!("Грешка при създаване на symlink на {}: {}", src_path.display(), e)
+                format!("Error creating symlink of {}: {}", src_path.display(), e)
             })?;
         }
         #[cfg(windows)]
         {
             let meta = fs::metadata(&src_path).map_err(|e| {
-                format!("Грешка при четене на {}: {}", src_path.display(), e)
+                format!("Error reading {}: {}", src_path.display(), e)
             })?;
             let result = if meta.is_dir() {
                 std::os::windows::fs::symlink_dir(&src_path, &dest)
@@ -750,7 +750,7 @@ fn link_path(src: String, dst_dir: String, hard: bool) -> Result<String, String>
                 std::os::windows::fs::symlink_file(&src_path, &dest)
             };
             result.map_err(|e| {
-                format!("Грешка при създаване на symlink на {}: {}", src_path.display(), e)
+                format!("Error creating symlink of {}: {}", src_path.display(), e)
             })?;
         }
     }
@@ -767,17 +767,17 @@ async fn copy_path_progress(
     let src_path = PathBuf::from(&src);
     let dst_path = PathBuf::from(&dst_dir);
     if !dst_path.is_dir() {
-        return Err(format!("Не е директория: {}", dst_dir));
+        return Err(format!("Not a directory: {}", dst_dir));
     }
     let name = src_path
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
-        .ok_or_else(|| "Невалиден изходен път.".to_string())?;
+        .ok_or_else(|| "Invalid source path.".to_string())?;
     if src_path.parent().map(|p| p == dst_path.as_path()).unwrap_or(false) {
-        return Err("Файлът вече е в тази папка.".to_string());
+        return Err("File is already in this folder.".to_string());
     }
     if is_descendant(&dst_path, &src_path) {
-        return Err("Не може да копирате папка в самата нея.".to_string());
+        return Err("Cannot copy a folder into itself.".to_string());
     }
     let dest = resolve_dest(&dst_path, &name);
     let cancel = register_cancel(&app, &id);
@@ -789,7 +789,7 @@ async fn copy_path_progress(
         copy_recursive_progress(&src2, &dest2, &app2, &id2, &cancel)
     })
     .await
-    .map_err(|e| format!("Грешка при копиране: {}", e))?;
+    .map_err(|e| format!("Error copying: {}", e))?;
     unregister_cancel(&app, &id);
     unregister_progress(&app, &id);
     match result {
@@ -814,17 +814,17 @@ async fn move_path_progress(
     let src_path = PathBuf::from(&src);
     let dst_path = PathBuf::from(&dst_dir);
     if !dst_path.is_dir() {
-        return Err(format!("Не е директория: {}", dst_dir));
+        return Err(format!("Not a directory: {}", dst_dir));
     }
     let name = src_path
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
-        .ok_or_else(|| "Невалиден изходен път.".to_string())?;
+        .ok_or_else(|| "Invalid source path.".to_string())?;
     if src_path.parent().map(|p| p == dst_path.as_path()).unwrap_or(false) {
-        return Err("Файлът вече е в тази папка.".to_string());
+        return Err("File is already in this folder.".to_string());
     }
     if is_descendant(&dst_path, &src_path) {
-        return Err("Не може да преместите папка в самата нея.".to_string());
+        return Err("Cannot move a folder into itself.".to_string());
     }
     let dest = resolve_dest(&dst_path, &name);
     if fs::rename(&src_path, &dest).is_ok() {
@@ -839,7 +839,7 @@ async fn move_path_progress(
         copy_recursive_progress(&src2, &dest2, &app2, &id2, &cancel)
     })
     .await
-    .map_err(|e| format!("Грешка при преместване: {}", e))?;
+    .map_err(|e| format!("Error moving: {}", e))?;
     unregister_cancel(&app, &id);
     unregister_progress(&app, &id);
     match result {
@@ -850,7 +850,7 @@ async fn move_path_progress(
             } else {
                 fs::remove_file(&src_path)
             };
-            del.map_err(|e| format!("Копирано, но не може да се изтрие източникът: {}", e))?;
+            del.map_err(|e| format!("Copied, but source could not be deleted: {}", e))?;
             Ok(dest.to_string_lossy().to_string())
         }
         Err(e) => {
@@ -888,7 +888,7 @@ fn get_app_version() -> Result<String, String> {
 #[tauri::command]
 fn read_text_file(path: String) -> Result<String, String> {
     let data = fs::read(Path::new(&path))
-        .map_err(|e| format!("Не може да се прочете файлът {}: {}", path, e))?;
+        .map_err(|e| format!("Cannot read file {}: {}", path, e))?;
     let capped = if data.len() > 1_000_000 { &data[..1_000_000] } else { &data[..] };
     Ok(String::from_utf8_lossy(capped).to_string())
 }
@@ -896,7 +896,7 @@ fn read_text_file(path: String) -> Result<String, String> {
 #[tauri::command]
 fn read_file_chunk(path: String, offset: u64, limit: u64) -> Result<String, String> {
     let meta = fs::metadata(Path::new(&path))
-        .map_err(|e| format!("Не може да се прочете файлът {}: {}", path, e))?;
+        .map_err(|e| format!("Cannot read file {}: {}", path, e))?;
     let file_size = meta.len();
     if offset >= file_size {
         return Ok(String::new());
@@ -905,19 +905,19 @@ fn read_file_chunk(path: String, offset: u64, limit: u64) -> Result<String, Stri
     let len = (end - offset) as usize;
     let mut buf = vec![0u8; len];
     let mut f = fs::File::open(Path::new(&path))
-        .map_err(|e| format!("Не може да се отвори файлът {}: {}", path, e))?;
+        .map_err(|e| format!("Cannot open file {}: {}", path, e))?;
     use std::io::{Read, Seek, SeekFrom};
     f.seek(SeekFrom::Start(offset))
-        .map_err(|e| format!("Грешка при позициониране: {}", e))?;
+        .map_err(|e| format!("Error seeking: {}", e))?;
     f.read_exact(&mut buf)
-        .map_err(|e| format!("Грешка при четене: {}", e))?;
+        .map_err(|e| format!("Error reading: {}", e))?;
     Ok(String::from_utf8_lossy(&buf).to_string())
 }
 
 #[tauri::command]
 fn path_info(path: String) -> Result<FileInfo, String> {
     let p = PathBuf::from(&path);
-    let meta = fs::metadata(&p).map_err(|e| format!("Грешка при четене на {}: {}", path, e))?;
+    let meta = fs::metadata(&p).map_err(|e| format!("Error reading {}: {}", path, e))?;
     #[cfg(unix)]
     let permissions = {
         use std::os::unix::fs::PermissionsExt;
@@ -1015,7 +1015,7 @@ fn shell_execute(path: &Path, verb: Option<&str>) -> Result<(), String> {
         Ok(())
     } else {
         Err(format!(
-            "Грешка при отваряне на {}: ShellExecute код {}",
+            "Error opening {}: ShellExecute code {}",
             path.display(),
             result
         ))
@@ -1026,7 +1026,7 @@ fn shell_execute(path: &Path, verb: Option<&str>) -> Result<(), String> {
 fn open_path(path: String) -> Result<(), String> {
     let p = PathBuf::from(&path);
     if !p.exists() {
-        return Err(format!("Не съществува: {}", path));
+        return Err(format!("Does not exist: {}", path));
     }
 
     #[cfg(target_os = "windows")]
@@ -1063,7 +1063,7 @@ fn open_path(path: String) -> Result<(), String> {
 
         return result
             .map(|_| ())
-            .map_err(|e| format!("Грешка при отваряне на {}: {}", path, e));
+            .map_err(|e| format!("Error opening {}: {}", path, e));
     }
 }
 
@@ -1087,7 +1087,7 @@ fn default_editor_command(path: &str) -> std::process::Command {
 fn edit_path(path: String) -> Result<(), String> {
     let p = PathBuf::from(&path);
     if !p.exists() {
-        return Err(format!("Не съществува: {}", path));
+        return Err(format!("Does not exist: {}", path));
     }
 
     #[cfg(target_os = "windows")]
@@ -1109,7 +1109,7 @@ fn edit_path(path: String) -> Result<(), String> {
     {
         result
             .map(|_| ())
-            .map_err(|e| format!("Грешка при редакция на {}: {}", path, e))
+            .map_err(|e| format!("Error editing {}: {}", path, e))
     }
 }
 
@@ -1126,7 +1126,7 @@ fn get_appearance() -> Result<AppSettings, String> {
 #[tauri::command]
 fn set_theme(theme: String, app: tauri::AppHandle) -> Result<AppSettings, String> {
     if !["system", "light", "dark"].contains(&theme.as_str()) {
-        return Err("Невалидна тема.".to_string());
+        return Err("Invalid theme.".to_string());
     }
     let mut settings = load_settings();
     settings.theme = theme;
@@ -1138,7 +1138,7 @@ fn set_theme(theme: String, app: tauri::AppHandle) -> Result<AppSettings, String
 #[tauri::command]
 fn set_font(font: String, app: tauri::AppHandle) -> Result<AppSettings, String> {
     if !["default", "monospace", "serif", "sans"].contains(&font.as_str()) {
-        return Err("Невалиден шрифт.".to_string());
+        return Err("Invalid font.".to_string());
     }
     let mut settings = load_settings();
     settings.font = font;
@@ -1228,7 +1228,7 @@ fn run_in_terminal(cmd: std::process::Command, cwd: Option<&Path>) -> Result<(),
         .arg("-e")
         .arg(script)
         .spawn()
-        .map_err(|e| format!("Грешка при отваряне на терминал: {}", e))?;
+        .map_err(|e| format!("Error opening terminal: {}", e))?;
     Ok(())
 }
 
@@ -1264,7 +1264,7 @@ fn run_in_terminal(cmd: std::process::Command, cwd: Option<&Path>) -> Result<(),
     start.arg(&cmdline);
     start
         .spawn()
-        .map_err(|e| format!("Грешка при отваряне на терминал: {}", e))?;
+        .map_err(|e| format!("Error opening terminal: {}", e))?;
     Ok(())
 }
 
@@ -1302,11 +1302,11 @@ fn run_in_terminal(cmd: std::process::Command, cwd: Option<&Path>) -> Result<(),
             c.args(prefix);
             c.arg("sh").arg("-c").arg(&line);
             c.spawn()
-                .map_err(|e| format!("Грешка при отваряне на терминал {}: {}", bin, e))?;
+                .map_err(|e| format!("Error opening terminal {}: {}", bin, e))?;
             return Ok(());
         }
     }
-    Err("Не е намерен терминален емулатор.".to_string())
+    Err("No terminal emulator found.".to_string())
 }
 
 fn split_command(template: &str) -> Vec<String> {
@@ -1362,7 +1362,7 @@ fn resolve_program(tokens: &[String]) -> (String, usize) {
 fn build_command(template: &str, paths: &[String]) -> Result<std::process::Command, String> {
     let tokens = split_command(template);
     if tokens.is_empty() {
-        return Err("Невалидна команда.".to_string());
+        return Err("Invalid command.".to_string());
     }
     let (prog, used) = resolve_program(&tokens);
     let placeholders: Vec<String> = (1..=paths.len()).map(|i| format!("%{}", i)).collect();
@@ -1418,13 +1418,13 @@ fn launch(mut cmd: std::process::Command, in_terminal: bool, cwd: Option<&Path>)
                 .arg("--args")
                 .args(&args)
                 .spawn()
-                .map_err(|e| format!("Грешка при стартиране на {}: {}", prog, e))?;
+                .map_err(|e| format!("Error launching {}: {}", prog, e))?;
             return Ok(());
         }
     }
     let prog = cmd.get_program().to_string_lossy().to_string();
     cmd.spawn()
-        .map_err(|e| format!("Грешка при стартиране на {}: {}", prog, e))?;
+        .map_err(|e| format!("Error launching {}: {}", prog, e))?;
     Ok(())
 }
 
@@ -1433,7 +1433,7 @@ fn run_diff(path_a: String, path_b: String) -> Result<(), String> {
     let settings = load_settings();
     let cmd = settings.diff_command.trim().to_string();
     if cmd.is_empty() {
-        return Err("Не е зададена външна програма за сравняване.".to_string());
+        return Err("No external diff program configured.".to_string());
     }
     let command = build_command(&cmd, &[path_a, path_b])?;
     launch(command, settings.diff_in_terminal, None)
@@ -1444,7 +1444,7 @@ fn run_edit(path: String) -> Result<(), String> {
     let settings = load_settings();
     let cmd = settings.edit_command.trim().to_string();
     if cmd.is_empty() {
-        return Err("Не е зададен външен редактор.".to_string());
+        return Err("No external editor configured.".to_string());
     }
     let command = build_command(&cmd, &[path])?;
     launch(command, settings.edit_in_terminal, None)
