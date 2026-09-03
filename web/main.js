@@ -2490,11 +2490,11 @@ document.addEventListener("keydown", (ev) => {
       break;
     case "Home":
       ev.preventDefault();
-      select(side, 0);
+      select(side, 0, { shift: ev.shiftKey });
       break;
     case "End":
       ev.preventDefault();
-      select(side, (state[side].rows || []).length - 1);
+      select(side, (state[side].rows || []).length - 1, { shift: ev.shiftKey });
       break;
     case "Delete":
       ev.preventDefault();
