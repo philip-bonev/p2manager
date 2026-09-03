@@ -431,6 +431,14 @@ body {
   font-weight: bold;
 }
 
+.panel-list li.cut {
+  opacity: 0.45;
+}
+
+#btn-paste.has-clip .tb-icon {
+  color: var(--accent);
+}
+
 .panel-list li.selected {
   background: var(--selected-bg);
   color: var(--selected-text);

@@ -25,6 +25,8 @@ const rootEl = document.documentElement;
 let themePref = "system";
 let currentOsTheme = null;
 let showHidden = true;
+const isMac = navigator.platform.startsWith("Mac") || navigator.userAgent.includes("Mac");
+let clipboard = { files: [], isCut: false };
 
 const FONT_MAP = {
   default: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
@@ -83,8 +85,8 @@ async function syncAppearance() {
 }
 
 const state = {
-  left: { path: null, parent: null, items: [], selected: 0, marked: new Set(), sortKey: "name", sortDir: "asc" },
-  right: { path: null, parent: null, items: [], selected: 0, marked: new Set(), sortKey: "name", sortDir: "asc" },
+  left: { path: null, parent: null, items: [], selected: 0, marked: new Set(), selAnchor: 0, sortKey: "name", sortDir: "asc" },
+  right: { path: null, parent: null, items: [], selected: 0, marked: new Set(), selAnchor: 0, sortKey: "name", sortDir: "asc" },
 };
 let activeSide = "left";
 let fuzzyPref = false;
@@ -241,6 +243,7 @@ async function loadDir(side, path) {
     s.items = listing.items;
     s.selected = 0;
     s.marked = new Set();
+    s.selAnchor = 0;
     render(side);
     heads[side].textContent = listing.path;
   } catch (err) {
@@ -318,7 +321,7 @@ function render(side) {
     li.addEventListener("mousedown", (ev) => {
       ev.preventDefault();
       setActiveSide(side);
-      select(side, idx);
+      select(side, idx, { shift: ev.shiftKey });
     });
     li.addEventListener("dblclick", (ev) => {
       ev.preventDefault();
@@ -345,7 +348,7 @@ function render(side) {
   updateCols(side);
 }
 
-function select(side, idx) {
+function select(side, idx, opts = {}) {
   const s = state[side];
   const rows = s.rows || [];
   if (rows.length === 0) return;
@@ -353,8 +356,23 @@ function select(side, idx) {
   if (idx >= rows.length) idx = rows.length - 1;
   s.selected = idx;
 
+  if (opts.shift) {
+    const from = Math.min(s.selAnchor, idx);
+    const to = Math.max(s.selAnchor, idx);
+    for (let i = from; i <= to; i++) {
+      const row = rows[i];
+      if (row && row.kind !== "parent") s.marked.add(i);
+    }
+  } else {
+    s.selAnchor = idx;
+  }
+
   listItems(side).forEach((li, i) => {
     li.classList.toggle("selected", i === idx);
+    const isMarked = s.marked.has(i);
+    li.classList.toggle("marked", isMarked);
+    const mark = li.querySelector(".mark");
+    if (mark) mark.textContent = isMarked ? "*" : "";
   });
 
   const el = listItems(side)[idx];
@@ -423,6 +441,68 @@ function invertMarks(side) {
   });
   s.marked = newSet;
   render(side);
+}
+
+function selectAll(side) {
+  const s = state[side];
+  const rows = s.rows || [];
+  rows.forEach((row, i) => {
+    if (row.kind === "parent") return;
+    s.marked.add(i);
+  });
+  render(side);
+}
+
+function copyToClipboard(isCut) {
+  const side = activeSide;
+  const s = state[side];
+  const rows = s.rows || [];
+  const markedIdx = [...s.marked]
+    .filter((i) => rows[i] && rows[i].kind === "item")
+    .sort((a, b) => a - b);
+  let files = [];
+  if (markedIdx.length > 0) {
+    files = markedIdx.map((i) => `${s.path.replace(/\/$/, "")}/${rows[i].entry.name}`);
+  } else {
+    const row = selectedRow(side);
+    if (row && row.kind !== "parent") {
+      files = [selectedPath(side)];
+    }
+  }
+  if (files.length === 0) return;
+  clipboard = { files, isCut };
+  document.querySelector("#btn-paste").classList.toggle("has-clip", true);
+  listItems(side).forEach((li, i) => {
+    li.classList.toggle("cut", isCut && s.marked.has(i));
+  });
+  updateStatus();
+}
+
+async function pasteFromClipboard() {
+  if (clipboard.files.length === 0) return;
+  const side = activeSide;
+  const s = state[side];
+  if (!s.path) return;
+  const wasCut = clipboard.isCut;
+  const dest = s.path.replace(/\/$/, "");
+  for (const src of clipboard.files) {
+    try {
+      if (wasCut) {
+        await invoke("move_path", { src, dstDir: dest });
+      } else {
+        await invoke("copy_path", { src, dstDir: dest });
+      }
+    } catch (err) {
+      alertModal(t("err.title"), String(err));
+    }
+  }
+  if (wasCut) {
+    clipboard = { files: [], isCut: false };
+    document.querySelector("#btn-paste").classList.remove("has-clip");
+  }
+  refresh(side);
+  const other = side === "left" ? "right" : "left";
+  if (wasCut && state[other].path) refresh(other);
 }
 
 async function markPatternModal(mark) {
@@ -567,14 +647,14 @@ function openSelectedIn(src, dst) {
   loadDir(dst, full);
 }
 
-function moveSelection(side, delta) {
+function moveSelection(side, delta, shift) {
   const s = state[side];
   const count = (s.rows || []).length;
   if (count === 0) return;
   let idx = s.selected + delta;
   if (idx < 0) idx = 0;
   if (idx >= count) idx = count - 1;
-  select(side, idx);
+  select(side, idx, { shift });
 }
 
 function pageStep(side) {
@@ -2238,6 +2318,7 @@ document.querySelector("#btn-home").addEventListener("mousedown", async () => {
   if (home) loadDir(activeSide, home);
 });
 document.querySelector("#btn-refresh").addEventListener("mousedown", () => refresh(activeSide));
+document.querySelector("#btn-paste").addEventListener("mousedown", () => pasteFromClipboard());
 document.querySelector("#btn-command").addEventListener("mousedown", () => runCommandModal());
 document.querySelector("#btn-fav").addEventListener("mousedown", () => {
   favoritesModal().then((p) => {
@@ -2309,7 +2390,8 @@ document.addEventListener("keydown", (ev) => {
   }
 
   const side = activeSide;
-  if (ev.ctrlKey && ev.key.toLowerCase() === "u") {
+  const mod = isMac ? ev.metaKey : ev.ctrlKey;
+  if (mod && ev.key.toLowerCase() === "u") {
     ev.preventDefault();
     swapPanels();
     return;
@@ -2329,14 +2411,14 @@ document.addEventListener("keydown", (ev) => {
     runCommandModal();
     return;
   }
-  if (ev.ctrlKey && ev.key.toLowerCase() === "d") {
+  if (mod && ev.key.toLowerCase() === "d") {
     ev.preventDefault();
     favoritesModal().then((p) => {
       if (p) loadDir(activeSide, p);
     });
     return;
   }
-  if (ev.ctrlKey && ev.key.toLowerCase() === "a") {
+  if (mod && ev.key.toLowerCase() === "s") {
     ev.preventDefault();
     favAppsModal().then((appPath) => {
       if (!appPath) return;
@@ -2352,6 +2434,26 @@ document.addEventListener("keydown", (ev) => {
     });
     return;
   }
+  if (mod && ev.key.toLowerCase() === "a") {
+    ev.preventDefault();
+    selectAll(side);
+    return;
+  }
+  if (mod && ev.key.toLowerCase() === "c") {
+    ev.preventDefault();
+    copyToClipboard(false);
+    return;
+  }
+  if (mod && ev.key.toLowerCase() === "x") {
+    ev.preventDefault();
+    copyToClipboard(true);
+    return;
+  }
+  if (mod && ev.key.toLowerCase() === "v") {
+    ev.preventDefault();
+    pasteFromClipboard();
+    return;
+  }
   if (ev.ctrlKey && ev.key === "PageDown") {
     ev.preventDefault();
     openRow(side, getActive().selected, true);
@@ -2360,11 +2462,11 @@ document.addEventListener("keydown", (ev) => {
   switch (ev.key) {
     case "ArrowDown":
       ev.preventDefault();
-      moveSelection(side, 1);
+      moveSelection(side, 1, ev.shiftKey);
       break;
     case "ArrowUp":
       ev.preventDefault();
-      moveSelection(side, -1);
+      moveSelection(side, -1, ev.shiftKey);
       break;
     case "PageDown":
       ev.preventDefault();
