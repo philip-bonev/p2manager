@@ -1766,7 +1766,8 @@ function openProgressModal(title, id) {
 function confirmModal(title, message, checkboxes) {
   return new Promise((resolve) => {
     lastFocused = document.activeElement;
-    modalDismissCb = () => resolve({ ok: false, values });
+    const prevDismiss = modalDismissCb;
+    modalDismissCb = () => { resolve({ ok: false, values }); modalDismissCb = prevDismiss; };
     modalTitle.textContent = title;
     modalBody.innerHTML = "";
     const pre = document.createElement("pre");
@@ -1837,7 +1838,8 @@ function confirmModal(title, message, checkboxes) {
 function promptModal(title, label, initial) {
   return new Promise((resolve) => {
     lastFocused = document.activeElement;
-    modalDismissCb = () => resolve(null);
+    const prevDismiss = modalDismissCb;
+    modalDismissCb = () => { resolve(null); modalDismissCb = prevDismiss; };
     modalTitle.textContent = title;
     modalBody.innerHTML = "";
     const p = document.createElement("p");
@@ -1894,7 +1896,8 @@ function promptModal(title, label, initial) {
 function commandModal() {
   return new Promise((resolve) => {
     lastFocused = document.activeElement;
-    modalDismissCb = () => resolve(null);
+    const prevDismiss = modalDismissCb;
+    modalDismissCb = () => { resolve(null); modalDismissCb = prevDismiss; };
     modalTitle.textContent = t("cmd.title");
     modalBody.innerHTML = "";
     const p = document.createElement("p");
@@ -1969,7 +1972,8 @@ function favModal(opts) {
       }
     };
     modalEl.addEventListener("keydown", favKeyHandler);
-    modalDismissCb = () => resolve(null);
+    const prevDismiss = modalDismissCb;
+    modalDismissCb = () => { resolve(null); modalDismissCb = prevDismiss; };
 
     lastFocused = document.activeElement;
     modalTitle.textContent = opts.title;
