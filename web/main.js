@@ -1985,8 +1985,8 @@ function favModal(opts) {
 
     const choose = (i) => {
       if (!items[i]) return;
-      closeModal();
       resolve(items[i]);
+      closeModal();
     };
 
     const save = async (next) => {
