@@ -1800,15 +1800,15 @@ function confirmModal(title, message, checkboxes) {
     const noBtn = document.createElement("button");
     noBtn.textContent = t("btn.no");
     noBtn.addEventListener("mousedown", () => {
-      closeModal();
       resolve({ ok: false, values });
+      closeModal();
     });
     noBtn.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter" || ev.key === " ") {
         ev.preventDefault();
         ev.stopPropagation();
-        closeModal();
         resolve({ ok: false, values });
+        closeModal();
       }
     });
     modalActions.appendChild(noBtn);
@@ -1817,15 +1817,15 @@ function confirmModal(title, message, checkboxes) {
     yesBtn.textContent = t("btn.yes");
     yesBtn.className = "primary";
     yesBtn.addEventListener("mousedown", () => {
-      closeModal();
       resolve({ ok: true, values });
+      closeModal();
     });
     yesBtn.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter" || ev.key === " ") {
         ev.preventDefault();
         ev.stopPropagation();
-        closeModal();
         resolve({ ok: true, values });
+        closeModal();
       }
     });
     modalActions.appendChild(yesBtn);
@@ -1858,8 +1858,8 @@ function promptModal(title, label, initial) {
     const cancelBtn = document.createElement("button");
     cancelBtn.textContent = t("btn.cancel");
     cancelBtn.addEventListener("mousedown", () => {
-      closeModal();
       resolve(null);
+      closeModal();
     });
     modalActions.appendChild(cancelBtn);
 
@@ -1868,8 +1868,8 @@ function promptModal(title, label, initial) {
     okBtn.className = "primary";
     okBtn.addEventListener("mousedown", () => {
       const value = input.value;
-      closeModal();
       resolve(value);
+      closeModal();
     });
     modalActions.appendChild(okBtn);
 
@@ -1880,14 +1880,14 @@ function promptModal(title, label, initial) {
         ev.preventDefault();
         ev.stopPropagation();
         const value = input.value;
-        closeModal();
         resolve(value);
+        closeModal();
       }
       if (ev.key === "Escape") {
         ev.preventDefault();
         ev.stopPropagation();
-        closeModal();
         resolve(null);
+        closeModal();
       }
     });
   });
@@ -1923,8 +1923,8 @@ function commandModal() {
     const cancelBtn = document.createElement("button");
     cancelBtn.textContent = t("btn.cancel");
     cancelBtn.addEventListener("mousedown", () => {
-      closeModal();
       resolve(null);
+      closeModal();
     });
     modalActions.appendChild(cancelBtn);
 
@@ -1933,8 +1933,8 @@ function commandModal() {
     runBtn.className = "primary";
     runBtn.addEventListener("mousedown", () => {
       const value = input.value;
-      closeModal();
       resolve({ command: value, inTerminal: term.checked });
+      closeModal();
     });
     modalActions.appendChild(runBtn);
 
@@ -1945,14 +1945,14 @@ function commandModal() {
         ev.preventDefault();
         ev.stopPropagation();
         const value = input.value;
-        closeModal();
         resolve({ command: value, inTerminal: term.checked });
+        closeModal();
       }
       if (ev.key === "Escape") {
         ev.preventDefault();
         ev.stopPropagation();
-        closeModal();
         resolve(null);
+        closeModal();
       }
     });
   });
@@ -1967,8 +1967,8 @@ function favModal(opts) {
       if (ev.key === "Escape") {
         ev.preventDefault();
         ev.stopPropagation();
-        closeModal();
         resolve(null);
+        closeModal();
       }
     };
     modalEl.addEventListener("keydown", favKeyHandler);
@@ -2081,8 +2081,8 @@ function favModal(opts) {
         } else if (ev.key === "Escape") {
           ev.preventDefault();
           ev.stopPropagation();
-          closeModal();
           resolve(null);
+          closeModal();
         }
       });
 
@@ -2139,8 +2139,8 @@ function favModal(opts) {
         choose(sel);
       }, true);
       mkBtn(t("btn.close"), "", () => {
-        closeModal();
         resolve(null);
+        closeModal();
       }, true);
 
       updateSel();
@@ -2156,9 +2156,9 @@ function favModal(opts) {
       })
       .catch((err) => {
         loading = false;
+        resolve(null);
         closeModal();
         alertModal(t("err.title"), String(err));
-        resolve(null);
       });
   });
 }

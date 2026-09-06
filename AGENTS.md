@@ -55,6 +55,7 @@ F1 help, F2 diff (compare files), F3 view file, F4 edit, F5 copy, F6 move, F7 ne
 - Restore focus to the element that had focus before opening the modal (`lastFocused`) when it closes.
 - All text in modals comes from `t()` / `tp()` — never hardcode strings.
 - Nested modals: save/restore `modalDismissCb` (`const prevDismiss = modalDismissCb`) before setting a new one, restore after resolve. This prevents inner modals (e.g. `promptModal` inside `favModal`) from clobbering the outer dismiss callback.
+- **IMPORTANT:** `resolve()` MUST be called BEFORE `closeModal()`. `closeModal()` triggers `modalDismissCb` which also resolves the promise (with null/false). First resolve wins — if `closeModal()` runs first, the intended resolve value is lost. Pattern: `resolve(value); closeModal();`
 
 ## 9. i18n Rule (IMPORTANT)
 - All UI text (labels, buttons, F-key bar, menu items, modal titles/messages, help text, error messages shown in the UI) MUST go through `web/i18n.js` via `t(key)`/`tp(key, {vars})` or `data-i18n` attributes.
