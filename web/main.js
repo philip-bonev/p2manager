@@ -478,31 +478,10 @@ function copyToClipboard(isCut) {
   updateStatus();
 }
 
-async function pasteFromClipboard() {
+function pasteFromClipboard() {
   if (clipboard.files.length === 0) return;
-  const side = activeSide;
-  const s = state[side];
-  if (!s.path) return;
-  const wasCut = clipboard.isCut;
-  const dest = s.path.replace(/\/$/, "");
-  for (const src of clipboard.files) {
-    try {
-      if (wasCut) {
-        await invoke("move_path", { src, dstDir: dest });
-      } else {
-        await invoke("copy_path", { src, dstDir: dest });
-      }
-    } catch (err) {
-      alertModal(t("err.title"), String(err));
-    }
-  }
-  if (wasCut) {
-    clipboard = { files: [], isCut: false };
-    document.querySelector("#btn-paste").classList.remove("has-clip");
-  }
-  refresh(side);
-  const other = side === "left" ? "right" : "left";
-  if (wasCut && state[other].path) refresh(other);
+  const op = clipboard.isCut ? "move" : "copy";
+  copyOrMove(op, clipboard.files);
 }
 
 async function markPatternModal(mark) {
@@ -665,23 +644,33 @@ function pageStep(side) {
   return Math.max(1, Math.floor(list.clientHeight / rowHeight));
 }
 
-async function copyOrMove(op) {
+async function copyOrMove(op, externalSources) {
+  if (operationBusy) return;
+  operationBusy = true;
+  try {
   const side = activeSide;
   const s = state[side];
   const rows = s.rows || [];
-  const markedIdx = [...s.marked]
-    .filter((i) => rows[i] && rows[i].kind === "item")
-    .sort((a, b) => a - b);
   let targets = [];
-  if (markedIdx.length > 0) {
-    targets = markedIdx.map((i) => ({
-      row: rows[i],
-      path: `${s.path.replace(/\/$/, "")}/${rows[i].entry.name}`,
-    }));
+  if (externalSources && externalSources.length > 0) {
+    targets = externalSources.map((p) => {
+      const name = p.split("/").pop() || p.split("\\").pop();
+      return { row: { entry: { name, size: 0 } }, path: p };
+    });
   } else {
-    const row = selectedRow(side);
-    if (row && row.kind !== "parent") {
-      targets = [{ row, path: selectedPath(side) }];
+    const markedIdx = [...s.marked]
+      .filter((i) => rows[i] && rows[i].kind === "item")
+      .sort((a, b) => a - b);
+    if (markedIdx.length > 0) {
+      targets = markedIdx.map((i) => ({
+        row: rows[i],
+        path: `${s.path.replace(/\/$/, "")}/${rows[i].entry.name}`,
+      }));
+    } else {
+      const row = selectedRow(side);
+      if (row && row.kind !== "parent") {
+        targets = [{ row, path: selectedPath(side) }];
+      }
     }
   }
   if (targets.length === 0) {
@@ -689,13 +678,14 @@ async function copyOrMove(op) {
     return;
   }
   const other = getOther();
-  if (!other.path) {
+  const destPath = externalSources ? (s.path || other.path) : other.path;
+  if (!destPath) {
     alertModal(t("err.title"), t("err.noOtherDir"));
     return;
   }
   const verb = op === "copy" ? t("verb.copy") : t("verb.move");
   const checkboxes =
-    op === "copy"
+    op === "copy" && !externalSources
       ? [
           { id: "hard", label: t("link.hard"), checked: false },
           { id: "soft", label: t("link.soft"), checked: false },
@@ -705,18 +695,19 @@ async function copyOrMove(op) {
     targets.length === 1
       ? targets[0].row.entry.name
       : t("copyMove.multi", { count: targets.length });
+  const srcLabel = externalSources ? (activeSide === "left" ? state.right.path : state.left.path) : s.path;
   const res = await confirmModal(
     verb,
     t("copyMove.confirm", {
       verb,
       name,
-      src: s.path,
-      dst: other.path,
+      src: srcLabel,
+      dst: destPath,
     }),
     checkboxes
   );
   if (!res.ok) return;
-  const links = op === "copy" && (res.values.hard || res.values.soft);
+  const links = op === "copy" && !externalSources && (res.values.hard || res.values.soft);
   const id =
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
@@ -774,13 +765,13 @@ async function copyOrMove(op) {
       if (links) {
         await invoke("link_path", {
           src: t.path,
-          dstDir: other.path,
+          dstDir: destPath,
           hard: !!res.values.hard,
         });
       } else {
         await invoke(op === "copy" ? "copy_path_progress" : "move_path_progress", {
           src: t.path,
-          dstDir: other.path,
+          dstDir: destPath,
           id,
         });
       }
@@ -795,11 +786,17 @@ async function copyOrMove(op) {
   clearInterval(poll);
   progressCtrl = null;
   ctrl.close();
+  if (externalSources && clipboard.isCut) {
+    clipboard = { files: [], isCut: false };
+    document.querySelector("#btn-paste").classList.remove("has-clip");
+  }
   refresh(side);
   refresh(activeSide === "left" ? "right" : "left");
+  } finally { operationBusy = false; }
 }
 
 async function deleteSelected() {
+  if (operationBusy) return;
   const side = activeSide;
   const s = state[side];
   const rows = s.rows || [];
@@ -825,13 +822,36 @@ async function deleteSelected() {
       : t("copyMove.multi", { count: targets.length });
   const res = await confirmModal(t("delete.title"), t("delete.confirm", { name }));
   if (!res.ok) return;
+  operationBusy = true;
   try {
-    for (const t of targets) {
-      await invoke("delete_path", { path: t.path });
-    }
+    const paths = targets.map((t) => t.path);
+    const id =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`;
+    const ctrl = openProgressModal(t("delete.title"), id);
+    progressCtrl = ctrl;
+    const poll = setInterval(async () => {
+      try {
+        const p = await invoke("get_copy_progress", { id });
+        if (!p) return;
+        const done = p.deleted || 0;
+        const total = p.total || 0;
+        const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+        ctrl.setCurrent(p.path || "", done, total, `${pct}%`);
+        ctrl.setOverall(t("delete.title"), done, total);
+      } catch {}
+    }, 150);
+    await invoke("delete_path_progress", { paths, id });
+    clearInterval(poll);
+    progressCtrl = null;
+    ctrl.close();
     refresh(side);
   } catch (err) {
+    if (String(err).includes("CANCELLED")) return;
     alertModal(t("err.title"), String(err));
+  } finally {
+    operationBusy = false;
   }
 }
 
@@ -1615,6 +1635,8 @@ function quitApp() {
 
 let lastFocused = null;
 let progressCtrl = null;
+let modalDismissCb = null;
+let operationBusy = false;
 
 function getModalFocusables() {
   const modal = document.querySelector(".modal");
@@ -1659,6 +1681,7 @@ function closeModal() {
   modalEl.classList.remove("search-modal");
   modalEl.classList.remove("maximized");
   viewState = null;
+  if (modalDismissCb) { const cb = modalDismissCb; modalDismissCb = null; cb(); }
   if (lastFocused && document.contains(lastFocused)) {
     lastFocused.focus();
   }
@@ -1743,6 +1766,7 @@ function openProgressModal(title, id) {
 function confirmModal(title, message, checkboxes) {
   return new Promise((resolve) => {
     lastFocused = document.activeElement;
+    modalDismissCb = () => resolve({ ok: false, values });
     modalTitle.textContent = title;
     modalBody.innerHTML = "";
     const pre = document.createElement("pre");
@@ -1813,6 +1837,7 @@ function confirmModal(title, message, checkboxes) {
 function promptModal(title, label, initial) {
   return new Promise((resolve) => {
     lastFocused = document.activeElement;
+    modalDismissCb = () => resolve(null);
     modalTitle.textContent = title;
     modalBody.innerHTML = "";
     const p = document.createElement("p");
@@ -1869,6 +1894,7 @@ function promptModal(title, label, initial) {
 function commandModal() {
   return new Promise((resolve) => {
     lastFocused = document.activeElement;
+    modalDismissCb = () => resolve(null);
     modalTitle.textContent = t("cmd.title");
     modalBody.innerHTML = "";
     const p = document.createElement("p");
@@ -1943,6 +1969,7 @@ function favModal(opts) {
       }
     };
     modalEl.addEventListener("keydown", favKeyHandler);
+    modalDismissCb = () => resolve(null);
 
     lastFocused = document.activeElement;
     modalTitle.textContent = opts.title;

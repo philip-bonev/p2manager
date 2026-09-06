@@ -131,7 +131,7 @@ struct WindowGeometry {
 struct AppState {
     geometry: Mutex<WindowGeometry>,
     cancel_flags: Mutex<HashMap<String, Arc<AtomicBool>>>,
-    progress: Mutex<HashMap<String, CopyProgress>>,
+    progress: Mutex<HashMap<String, serde_json::Value>>,
 }
 
 fn settings_path() -> PathBuf {
@@ -455,12 +455,12 @@ fn copy_file_progress(
         if let Some(state) = app.try_state::<AppState>() {
             state.progress.lock().unwrap().insert(
                 id.to_string(),
-                CopyProgress {
+                serde_json::to_value(CopyProgress {
                     id: id.to_string(),
                     copied,
                     total,
                     path: src.to_string_lossy().to_string(),
-                },
+                }).unwrap_or_default(),
             );
         }
     }
@@ -657,6 +657,113 @@ fn delete_path(path: String) -> Result<(), String> {
         fs::remove_file(&p)
     };
     result.map_err(|e| format!("Error deleting {}: {}", path, e))
+}
+
+#[derive(Clone, serde::Serialize)]
+struct DeleteProgress {
+    id: String,
+    deleted: u64,
+    total: u64,
+    path: String,
+}
+
+fn count_entries(path: &Path) -> u64 {
+    if path.is_dir() {
+        let mut count = 0;
+        if let Ok(entries) = fs::read_dir(path) {
+            for entry in entries.flatten() {
+                count += 1;
+                if entry.path().is_dir() {
+                    count += count_entries(&entry.path());
+                }
+            }
+        }
+        count
+    } else {
+        1
+    }
+}
+
+fn report_delete_progress(app: &tauri::AppHandle, id: &str, counter: u64, total: u64, path: &str) {
+    if let Some(state) = app.try_state::<AppState>() {
+        if let Ok(v) = serde_json::to_value(DeleteProgress {
+            id: id.to_string(),
+            deleted: counter,
+            total,
+            path: path.to_string(),
+        }) {
+            state.progress.lock().unwrap().insert(id.to_string(), v);
+        }
+    }
+}
+
+fn delete_recursive_progress(
+    path: &Path,
+    app: &tauri::AppHandle,
+    id: &str,
+    counter: &mut u64,
+    total: u64,
+    cancel: &AtomicBool,
+) -> Result<(), String> {
+    if cancel.load(Ordering::Relaxed) {
+        return Err("CANCELLED".to_string());
+    }
+    if path.is_dir() {
+        let entries: Vec<_> = fs::read_dir(path)
+            .map_err(|e| format!("Error reading {}: {}", path.display(), e))?
+            .flatten()
+            .collect();
+        for entry in entries {
+            let p = entry.path();
+            if p.is_dir() {
+                delete_recursive_progress(&p, app, id, counter, total, cancel)?;
+            } else {
+                if cancel.load(Ordering::Relaxed) {
+                    return Err("CANCELLED".to_string());
+                }
+                fs::remove_file(&p).map_err(|e| format!("Error deleting {}: {}", p.display(), e))?;
+                *counter += 1;
+                report_delete_progress(app, id, *counter, total, &p.to_string_lossy());
+            }
+        }
+        fs::remove_dir(path).map_err(|e| format!("Error deleting {}: {}", path.display(), e))?;
+        *counter += 1;
+        report_delete_progress(app, id, *counter, total, &path.to_string_lossy());
+    } else {
+        if cancel.load(Ordering::Relaxed) {
+            return Err("CANCELLED".to_string());
+        }
+        fs::remove_file(path).map_err(|e| format!("Error deleting {}: {}", path.display(), e))?;
+        *counter += 1;
+        report_delete_progress(app, id, *counter, total, &path.to_string_lossy());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn delete_path_progress(
+    app: tauri::AppHandle,
+    paths: Vec<String>,
+    id: String,
+) -> Result<(), String> {
+    let total: u64 = paths.iter().map(|p| count_entries(&PathBuf::from(p))).sum();
+    let cancel = register_cancel(&app, &id);
+    let app2 = app.clone();
+    let id2 = id.clone();
+    let paths2 = paths.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let mut counter = 0u64;
+        for p in &paths2 {
+            let path = PathBuf::from(p);
+            delete_recursive_progress(&path, &app2, &id2, &mut counter, total, &cancel)?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Error deleting: {}", e))?;
+    unregister_cancel(&app, &id);
+    unregister_progress(&app, &id);
+    result
 }
 
 #[tauri::command]
@@ -874,7 +981,7 @@ fn cancel_copy(id: String, app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn get_copy_progress(id: String, app: tauri::AppHandle) -> Result<Option<CopyProgress>, String> {
+fn get_copy_progress(id: String, app: tauri::AppHandle) -> Result<Option<serde_json::Value>, String> {
     Ok(app
         .try_state::<AppState>()
         .and_then(|s| s.progress.lock().unwrap().get(&id).cloned()))
@@ -1546,6 +1653,7 @@ pub fn run() {
             rename_path,
             search_files,
             delete_path,
+            delete_path_progress,
             copy_path,
             move_path,
             link_path,
