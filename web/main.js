@@ -768,8 +768,19 @@ async function copyOrMove(op, externalSources) {
           dstDir: destPath,
           hard: !!res.values.hard,
         });
+      } else if (op === "move") {
+        try {
+          await invoke("move_path", { src: t.path, dstDir: destPath });
+        } catch (e) {
+          if (String(e).includes("CANCELLED")) break;
+          await invoke("move_path_progress", {
+            src: t.path,
+            dstDir: destPath,
+            id,
+          });
+        }
       } else {
-        await invoke(op === "copy" ? "copy_path_progress" : "move_path_progress", {
+        await invoke("copy_path_progress", {
           src: t.path,
           dstDir: destPath,
           id,
