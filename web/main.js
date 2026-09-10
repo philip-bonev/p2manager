@@ -2218,6 +2218,23 @@ function favAppsModal() {
   });
 }
 
+async function changeFolderModal() {
+  const base = state[activeSide].path || "";
+  const value = await promptModal(t("chdir.title"), t("chdir.prompt"), base);
+  if (value === null || !value.trim()) return;
+  let target = value.trim();
+  if (
+    (target.startsWith('"') && target.endsWith('"')) ||
+    (target.startsWith("'") && target.endsWith("'"))
+  ) {
+    target = target.slice(1, -1);
+  }
+  if (!target) return;
+  const isAbsolute = target.startsWith("/") || target.startsWith("\\") || /^[A-Za-z]:/.test(target);
+  const full = isAbsolute ? target : `${base.replace(/[/\\]$/, "")}/${target}`;
+  await loadDir(activeSide, full);
+}
+
 async function runCommandModal() {
   const res = await commandModal();
   if (!res || !res.command.trim()) return;
@@ -2466,6 +2483,11 @@ document.addEventListener("keydown", (ev) => {
     return;
   }
   if (ev.ctrlKey && ev.key === "ArrowDown") {
+    ev.preventDefault();
+    changeFolderModal();
+    return;
+  }
+  if (ev.ctrlKey && ev.key.toLowerCase() === "r") {
     ev.preventDefault();
     runCommandModal();
     return;
