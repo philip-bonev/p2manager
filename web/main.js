@@ -2214,6 +2214,7 @@ async function changeFolderModal() {
     const home = await invoke("home_dir");
     target = home + target.slice(1);
   }
+  target = await invoke("expand_env", { path: target });
   const isAbsolute = target.startsWith("/") || target.startsWith("\\") || /^[A-Za-z]:/.test(target);
   const full = isAbsolute ? target : `${base.replace(/[/\\]$/, "")}/${target}`;
   await loadDir(activeSide, full);
