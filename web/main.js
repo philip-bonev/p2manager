@@ -1881,6 +1881,7 @@ function promptModal(title, label, initial) {
 
     overlay.classList.add("open");
     input.focus();
+    input.select();
     input.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") {
         ev.preventDefault();
@@ -1946,6 +1947,7 @@ function commandModal() {
 
     overlay.classList.add("open");
     input.focus();
+    input.select();
     input.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") {
         ev.preventDefault();
@@ -2208,6 +2210,10 @@ async function changeFolderModal() {
     target = target.slice(1, -1);
   }
   if (!target) return;
+  if (target === "~" || target.startsWith("~/") || target.startsWith("~\\")) {
+    const home = await invoke("home_dir");
+    target = home + target.slice(1);
+  }
   const isAbsolute = target.startsWith("/") || target.startsWith("\\") || /^[A-Za-z]:/.test(target);
   const full = isAbsolute ? target : `${base.replace(/[/\\]$/, "")}/${target}`;
   await loadDir(activeSide, full);
@@ -2216,32 +2222,6 @@ async function changeFolderModal() {
 async function runCommandModal() {
   const res = await commandModal();
   if (!res || !res.command.trim()) return;
-  const trimmed = res.command.trim();
-  const cdMatch = trimmed.match(/^cd(?:\s+(.*))?$/);
-  if (cdMatch) {
-    let target = (cdMatch[1] || "").trim();
-    if (target) {
-      if (
-        (target.startsWith('"') && target.endsWith('"')) ||
-        (target.startsWith("'") && target.endsWith("'"))
-      ) {
-        target = target.slice(1, -1);
-      }
-      if (target) {
-        const base = state[activeSide].path || "";
-        const isWindows = base.includes("\\");
-        const full = isWindows
-          ? /^[A-Za-z]:/.test(target)
-            ? target
-            : `${base.replace(/\\$/, "")}\\${target}`
-          : target.startsWith("/")
-            ? target
-            : `${base.replace(/\/$/, "")}/${target}`;
-        await loadDir(activeSide, full);
-      }
-    }
-    return;
-  }
   try {
     await invoke("run_command", {
       command: res.command,
