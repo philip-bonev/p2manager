@@ -1633,28 +1633,6 @@ function settingsModal() {
   });
 }
 
-function quickMenu() {
-  const items = [
-    [t("menu.copy"), () => copyOrMove("copy")],
-    [t("menu.move"), () => copyOrMove("move")],
-    [t("menu.mkdir"), () => newFolder()],
-    [t("menu.delete"), () => deleteSelected()],
-    [t("menu.view"), () => viewFile()],
-    [t("menu.info"), () => fileInfo()],
-  ];
-  let html = "";
-  items.forEach(([label, fn], i) => {
-    html += `<button class="menu-item" data-i="${i}">${label}</button>`;
-  });
-  showModal(t("menu.title"), "html", html, false);
-  modalBody.querySelectorAll(".menu-item").forEach((b) => {
-    b.addEventListener("mousedown", () => {
-      closeModal();
-      items[Number(b.dataset.i)][1]();
-    });
-  });
-}
-
 function quitApp() {
   invoke("quit_app").catch(() => {});
 }
@@ -2618,7 +2596,7 @@ function handleFKey(key) {
     F6: () => copyOrMove("move"),
     F7: newFolder,
     F8: deleteSelected,
-    F9: quickMenu,
+    F9: changeFolderModal,
     F10: quitApp,
     F11: renameSelected,
     F12: fileInfo,
