@@ -198,6 +198,11 @@ function sortedItems(side) {
     let r;
     if (key === "size") r = a.size - b.size;
     else if (key === "date") r = a.modified - b.modified;
+    else if (key === "ext") {
+      const extA = (a.name.includes(".") ? a.name.split(".").pop().toLowerCase() : "");
+      const extB = (b.name.includes(".") ? b.name.split(".").pop().toLowerCase() : "");
+      r = extA < extB ? -1 : extA > extB ? 1 : 0;
+    }
     else r = a.name.toLowerCase() < b.name.toLowerCase() ? -1 : a.name.toLowerCase() > b.name.toLowerCase() ? 1 : 0;
     return r * dir;
   });
@@ -214,6 +219,8 @@ function fullList(side) {
 
 function toggleSort(side, key) {
   const s = state[side];
+  const prevRow = s.rows && s.rows[s.selected];
+  const prevName = prevRow && prevRow.kind === "item" ? prevRow.entry.name : null;
   if (s.sortKey === key) {
     s.sortDir = s.sortDir === "asc" ? "desc" : "asc";
   } else {
@@ -221,6 +228,16 @@ function toggleSort(side, key) {
     s.sortDir = "asc";
   }
   render(side);
+  if (prevName) {
+    const rows = s.rows;
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].kind === "item" && rows[i].entry.name === prevName) {
+        s.selected = i;
+        select(side, i);
+        break;
+      }
+    }
+  }
   updateCols(side);
 }
 
