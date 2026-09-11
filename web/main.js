@@ -870,10 +870,13 @@ async function deleteSelected() {
         ctrl.setOverall(t("delete.title"), done, total);
       } catch {}
     }, 150);
-    await invoke("delete_path_progress", { paths, id });
-    clearInterval(poll);
-    progressCtrl = null;
-    ctrl.close();
+    try {
+      await invoke("delete_path_progress", { paths, id });
+    } finally {
+      clearInterval(poll);
+      progressCtrl = null;
+      ctrl.close();
+    }
     refresh(side);
   } catch (err) {
     if (String(err).includes("CANCELLED")) return;
