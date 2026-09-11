@@ -43,6 +43,7 @@ F1 help, F2 diff (compare files), F3 view file, F4 edit, F5 copy, F6 move, F7 ne
 - **Build Production:** `cargo tauri build` (bundle appears under `target/release/bundle/`)
 - **Lint Rust:** `cargo clippy`
 - **Format Rust:** `cargo fmt`
+- **macOS install after build:** `ditto "target/release/bundle/macos/p2manager.app" "/Applications/p2manager.app"`
 - **Verify JS:** `node --check web/<file>.js`
 - **Version:** bump BOTH `Cargo.toml` and `tauri.conf.json` `version`.
 
