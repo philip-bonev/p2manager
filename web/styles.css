@@ -726,6 +726,63 @@ body {
   border-color: var(--btn-border);
 }
 
+.about-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--modal-actions-border);
+  line-height: 1.6;
+}
+
+.about-header .app-name {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.about-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--modal-actions-border);
+}
+
+.about-tab {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.about-tab:hover {
+  background: var(--menu-hover-bg);
+}
+
+.about-tab.active {
+  border-bottom-color: var(--dir);
+  font-weight: bold;
+}
+
+.about-tab-panel {
+  display: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px;
+}
+
+.about-tab-panel.active {
+  display: block;
+}
+
+.about-tab-panel pre {
+  font-family: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  padding: 0;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
 }

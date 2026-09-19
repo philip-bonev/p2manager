@@ -1062,6 +1062,18 @@ fn get_app_version() -> Result<String, String> {
     Ok(env!("CARGO_PKG_VERSION").to_string())
 }
 
+const LICENSE_TEXT: &str = include_str!("../LICENSE");
+
+#[tauri::command]
+fn get_about_info() -> Result<serde_json::Value, String> {
+    let date = option_env!("BUILD_DATE").unwrap_or("");
+    Ok(serde_json::json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "date": date,
+        "license": LICENSE_TEXT,
+    }))
+}
+
 #[tauri::command]
 fn read_text_file(path: String) -> Result<String, String> {
     let data = fs::read(Path::new(&path))
@@ -1732,6 +1744,7 @@ pub fn run() {
             cancel_copy,
             get_copy_progress,
             get_app_version,
+            get_about_info,
             read_text_file,
             read_file_chunk,
             path_info,

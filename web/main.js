@@ -145,6 +145,10 @@ modalTitle.addEventListener("dblclick", () => {
   modalEl.classList.toggle("maximized");
 });
 
+function escHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function fmtSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB", "TB"];
@@ -1119,8 +1123,31 @@ async function diffSelected() {
 }
 
 async function helpModal() {
-  const v = await invoke("get_app_version").catch(() => "");
-  showModal(t("help.title"), "pre", `${t("help.text")}\n\n${t("help.version")}: ${v}`, true);
+  const info = await invoke("get_about_info").catch(() => ({ version: "", date: "", license: "" }));
+  const dateLine = info.date ? `${t("help.releaseDate")}: ${info.date}` : "";
+  const html = `
+    <div class="about-header">
+      <div class="app-name">Panel Manager</div>
+      <div>${t("help.version")}: ${info.version}${dateLine ? " · " + dateLine : ""}</div>
+      <div>${t("help.copyright")}: 2026 Philip Bonev · ${t("help.license")}: Apache 2.0</div>
+    </div>
+    <div class="about-tabs">
+      <button class="about-tab active" data-tab="help">${t("help.tabHelp")}</button>
+      <button class="about-tab" data-tab="license">${t("help.tabLicense")}</button>
+    </div>
+    <div class="about-tab-panel active" data-panel="help"><pre>${t("help.text")}</pre></div>
+    <div class="about-tab-panel" data-panel="license"><pre>${escHtml(info.license)}</pre></div>
+  `;
+  showModal(t("help.title"), "html", html, true);
+  modalEl.classList.add("maximized");
+  modalBody.querySelectorAll(".about-tab").forEach((tab) => {
+    tab.addEventListener("mousedown", () => {
+      modalBody.querySelectorAll(".about-tab").forEach((t) => t.classList.remove("active"));
+      modalBody.querySelectorAll(".about-tab-panel").forEach((p) => p.classList.remove("active"));
+      tab.classList.add("active");
+      modalBody.querySelector(`.about-tab-panel[data-panel="${tab.dataset.tab}"]`).classList.add("active");
+    });
+  });
 }
 
 function fileSearchDialog() {

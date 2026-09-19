@@ -109,8 +109,13 @@ const STRINGS = {
     "btn.ok": "ОК",
     "btn.cancel": "Отказ",
 
-    "help.title": "Помощ",
+    "help.title": "За приложението",
     "help.version": "Версия",
+    "help.releaseDate": "Дата на издаване",
+    "help.copyright": "Авторско право",
+    "help.license": "Лиценз",
+    "help.tabHelp": "Помощ",
+    "help.tabLicense": "Лиценз",
     "help.text": [
       "PANEL MANAGER — Помощ",
       "",
@@ -316,8 +321,13 @@ const STRINGS = {
     "btn.ok": "OK",
     "btn.cancel": "Cancel",
 
-    "help.title": "Help",
+    "help.title": "About",
     "help.version": "Version",
+    "help.releaseDate": "Release Date",
+    "help.copyright": "Copyright",
+    "help.license": "License",
+    "help.tabHelp": "Help",
+    "help.tabLicense": "License",
     "help.text": [
       "PANEL MANAGER — Help",
       "",
