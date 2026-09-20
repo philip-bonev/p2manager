@@ -51,6 +51,7 @@
   --menu-hover-bg: #cce4ff;
   --menu-hover-text: #1f1f1f;
   --scrollbar-thumb: #b8b8b8;
+  --panel-inactive-opacity: 0.55;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -90,6 +91,7 @@
     --menu-hover-bg: #264f78;
     --menu-hover-text: #ffffff;
     --scrollbar-thumb: #555555;
+    --panel-inactive-opacity: 0.4;
   }
 }
 
@@ -129,6 +131,7 @@
   --menu-hover-bg: #cce4ff;
   --menu-hover-text: #1f1f1f;
   --scrollbar-thumb: #b8b8b8;
+  --panel-inactive-opacity: 0.55;
 }
 
 :root.theme-dark {
@@ -166,6 +169,7 @@
   --menu-hover-bg: #264f78;
   --menu-hover-text: #ffffff;
   --scrollbar-thumb: #555555;
+  --panel-inactive-opacity: 0.4;
 }
 
 * {
@@ -276,9 +280,17 @@ body {
   text-overflow: ellipsis;
 }
 
-.panel-head.active {
+.panel.active .panel-head {
   background: var(--head);
   color: var(--head-text);
+}
+
+.panel:not(.active) {
+  opacity: var(--panel-inactive-opacity, 0.55);
+}
+
+.panel:not(.active) .panel-head {
+  opacity: 1;
 }
 
 .panel-cols {

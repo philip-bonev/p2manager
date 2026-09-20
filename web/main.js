@@ -91,6 +91,10 @@ const state = {
 let activeSide = "left";
 let fuzzyPref = false;
 
+const panels = {
+  left: document.getElementById("panel-left"),
+  right: document.getElementById("panel-right"),
+};
 const lists = {
   left: document.querySelector("#panel-left .panel-list"),
   right: document.querySelector("#panel-right .panel-list"),
@@ -529,7 +533,7 @@ async function markPatternModal(mark) {
 function setActiveSide(side) {
   activeSide = side;
   for (const s of ["left", "right"]) {
-    heads[s].classList.toggle("active", s === side);
+    panels[s].classList.toggle("active", s === side);
   }
   lists[side].focus?.();
   updateStatus();
