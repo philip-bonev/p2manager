@@ -40,6 +40,7 @@ F1 help, F2 diff (compare files), F3 view file, F4 edit, F5 copy, F6 move, F7 ne
 
 ## 6. Project Commands
 - **System PATH (required for build commands):** `export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Users/fi4o/.cargo/bin:$PATH"` — must be set before `cargo`/`ditto`/`node` etc. on macOS.
+- **Xcode toolchain:** If `xcrun`, `cc`, or SDK errors occur, ask the user to fix it outside — do NOT attempt automatic fixes.
 - **Run Dev Mode:** `cargo tauri dev`
 - **Build Production:** `cargo tauri build` (bundle appears under `target/release/bundle/`)
 - **Lint Rust:** `cargo clippy`
