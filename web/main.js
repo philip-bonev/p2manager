@@ -2459,8 +2459,7 @@ document.addEventListener("keydown", (ev) => {
   }
 
   const side = activeSide;
-  const mod = isMac ? ev.metaKey : ev.ctrlKey;
-  if (mod && ev.key.toLowerCase() === "u") {
+  if (ev.ctrlKey && ev.key.toLowerCase() === "u") {
     ev.preventDefault();
     swapPanels();
     return;
@@ -2485,14 +2484,14 @@ document.addEventListener("keydown", (ev) => {
     runCommandModal();
     return;
   }
-  if (mod && ev.key.toLowerCase() === "d") {
+  if (ev.ctrlKey && ev.key.toLowerCase() === "d") {
     ev.preventDefault();
     favoritesModal().then((p) => {
       if (p) loadDir(activeSide, p);
     });
     return;
   }
-  if (mod && ev.key.toLowerCase() === "s") {
+  if (ev.ctrlKey && ev.key.toLowerCase() === "s") {
     ev.preventDefault();
     favAppsModal().then((appPath) => {
       if (!appPath) return;
@@ -2508,22 +2507,22 @@ document.addEventListener("keydown", (ev) => {
     });
     return;
   }
-  if (mod && ev.key.toLowerCase() === "a") {
+  if (ev.ctrlKey && ev.key.toLowerCase() === "a") {
     ev.preventDefault();
     selectAll(side);
     return;
   }
-  if (mod && ev.key.toLowerCase() === "c") {
+  if (ev.ctrlKey && ev.key.toLowerCase() === "c") {
     ev.preventDefault();
     copyToClipboard(false);
     return;
   }
-  if (mod && ev.key.toLowerCase() === "x") {
+  if (ev.ctrlKey && ev.key.toLowerCase() === "x") {
     ev.preventDefault();
     copyToClipboard(true);
     return;
   }
-  if (mod && ev.key.toLowerCase() === "v") {
+  if (ev.ctrlKey && ev.key.toLowerCase() === "v") {
     ev.preventDefault();
     pasteFromClipboard();
     return;
