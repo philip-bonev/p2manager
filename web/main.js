@@ -672,6 +672,8 @@ function pageStep(side) {
 async function copyOrMove(op, externalSources) {
   if (operationBusy) return;
   operationBusy = true;
+  let poll = null;
+  let ctrl = null;
   try {
   const side = activeSide;
   const s = state[side];
@@ -737,7 +739,7 @@ async function copyOrMove(op, externalSources) {
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random()}`;
-  const ctrl = openProgressModal(verb, id);
+  ctrl = openProgressModal(verb, id);
   progressCtrl = ctrl;
   const totalBytes = targets.reduce((s, t) => s + (t.row.entry.size || 0), 0);
   const startTime = Date.now();
@@ -757,7 +759,7 @@ async function copyOrMove(op, externalSources) {
       totalBytes
     );
   };
-  const poll = setInterval(async () => {
+  poll = setInterval(async () => {
     try {
       const p = await invoke("get_copy_progress", { id });
       if (!p) return;
@@ -781,32 +783,32 @@ async function copyOrMove(op, externalSources) {
   }, 150);
   for (let i = 0; i < targets.length; i++) {
     if (ctrl.cancelled) break;
-    const t = targets[i];
+    const target = targets[i];
     lastSample = null;
     speed = 0;
-    ctrl.setCurrent(t.row.entry.name, 0, 0, "");
+    ctrl.setCurrent(target.row.entry.name, 0, 0, "");
     updateOverall(0);
     try {
       if (links) {
         await invoke("link_path", {
-          src: t.path,
+          src: target.path,
           dstDir: destPath,
           hard: !!res.values.hard,
         });
       } else if (op === "move") {
         try {
-          await invoke("move_path", { src: t.path, dstDir: destPath });
+          await invoke("move_path", { src: target.path, dstDir: destPath });
         } catch (e) {
           if (String(e).includes("CANCELLED")) break;
           await invoke("move_path_progress", {
-            src: t.path,
+            src: target.path,
             dstDir: destPath,
             id,
           });
         }
       } else {
         await invoke("copy_path_progress", {
-          src: t.path,
+          src: target.path,
           dstDir: destPath,
           id,
         });
@@ -816,19 +818,23 @@ async function copyOrMove(op, externalSources) {
       alertModal(t("err.title"), String(err));
       break;
     }
-    doneBytes += t.row.entry.size || 0;
+    doneBytes += target.row.entry.size || 0;
     updateOverall(0);
   }
-  clearInterval(poll);
-  progressCtrl = null;
-  ctrl.close();
   if (externalSources && clipboard.isCut) {
     clipboard = { files: [], isCut: false };
     document.querySelector("#btn-paste").classList.remove("has-clip");
   }
   refresh(side);
   refresh(activeSide === "left" ? "right" : "left");
-  } finally { operationBusy = false; }
+  } finally {
+    if (poll) clearInterval(poll);
+    if (ctrl) {
+      progressCtrl = null;
+      try { ctrl.close(); } catch {}
+    }
+    operationBusy = false;
+  }
 }
 
 async function deleteSelected() {

@@ -71,7 +71,12 @@ struct ColumnWidths {
 
 impl Default for ColumnWidths {
     fn default() -> Self {
-        ColumnWidths { name: 0.0, ext: 60.0, size: 80.0, date: 120.0 }
+        ColumnWidths {
+            name: 0.0,
+            ext: 60.0,
+            size: 80.0,
+            date: 120.0,
+        }
     }
 }
 
@@ -165,7 +170,8 @@ fn modified_secs(meta: &fs::Metadata) -> u64 {
 }
 
 fn entry_from_path(path: &Path) -> Result<FileEntry, String> {
-    let meta = fs::metadata(path).map_err(|e| format!("Error reading {}: {}", path.display(), e))?;
+    let meta =
+        fs::metadata(path).map_err(|e| format!("Error reading {}: {}", path.display(), e))?;
     let name = path
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
@@ -202,14 +208,15 @@ fn is_hidden(path: &Path) -> bool {
 fn copy_recursive(src: &Path, dst: &Path) -> Result<(), String> {
     if src.is_dir() {
         fs::create_dir_all(dst).map_err(|e| format!("Error creating {}: {}", dst.display(), e))?;
-        for entry in fs::read_dir(src).map_err(|e| format!("Error reading {}: {}", src.display(), e))? {
+        for entry in
+            fs::read_dir(src).map_err(|e| format!("Error reading {}: {}", src.display(), e))?
+        {
             let entry = entry.map_err(|e| e.to_string())?;
             let child_dst = dst.join(entry.file_name());
             copy_recursive(&entry.path(), &child_dst)?;
         }
     } else {
-        fs::copy(src, dst)
-            .map_err(|e| format!("Error copying {}: {}", src.display(), e))?;
+        fs::copy(src, dst).map_err(|e| format!("Error copying {}: {}", src.display(), e))?;
     }
     Ok(())
 }
@@ -250,7 +257,11 @@ fn glob_to_regex(pattern: &str) -> String {
     re
 }
 
-fn build_file_matcher(pattern: &str, mode: &str, ignore_case: bool) -> Result<Option<regex::Regex>, String> {
+fn build_file_matcher(
+    pattern: &str,
+    mode: &str,
+    ignore_case: bool,
+) -> Result<Option<regex::Regex>, String> {
     let pat = pattern.trim();
     if pat.is_empty() {
         return Ok(None);
@@ -280,10 +291,16 @@ fn build_content_matcher(
     if mode == "regexp" {
         let mut builder = regex::RegexBuilder::new(pat);
         builder.case_insensitive(ignore_case);
-        let re = builder.build().map_err(|e| format!("Invalid content pattern: {}", e))?;
+        let re = builder
+            .build()
+            .map_err(|e| format!("Invalid content pattern: {}", e))?;
         Ok((Some(re), None))
     } else {
-        let plain = if ignore_case { pat.to_lowercase() } else { pat.to_string() };
+        let plain = if ignore_case {
+            pat.to_lowercase()
+        } else {
+            pat.to_string()
+        };
         Ok((None, Some(plain)))
     }
 }
@@ -430,10 +447,10 @@ fn copy_file_progress(
     let total = fs::metadata(src)
         .map_err(|e| format!("Error reading {}: {}", src.display(), e))?
         .len();
-    let mut src_file = fs::File::open(src)
-        .map_err(|e| format!("Error opening {}: {}", src.display(), e))?;
-    let mut dst_file = fs::File::create(dst)
-        .map_err(|e| format!("Error creating {}: {}", dst.display(), e))?;
+    let mut src_file =
+        fs::File::open(src).map_err(|e| format!("Error opening {}: {}", src.display(), e))?;
+    let mut dst_file =
+        fs::File::create(dst).map_err(|e| format!("Error creating {}: {}", dst.display(), e))?;
     let mut buf = vec![0u8; 1 << 20];
     let mut copied: u64 = 0;
     loop {
@@ -460,7 +477,8 @@ fn copy_file_progress(
                     copied,
                     total,
                     path: src.to_string_lossy().to_string(),
-                }).unwrap_or_default(),
+                })
+                .unwrap_or_default(),
             );
         }
     }
@@ -478,8 +496,7 @@ fn copy_recursive_progress(
         return Err("CANCELLED".to_string());
     }
     if src.is_dir() {
-        fs::create_dir_all(dst)
-            .map_err(|e| format!("Error creating {}: {}", dst.display(), e))?;
+        fs::create_dir_all(dst).map_err(|e| format!("Error creating {}: {}", dst.display(), e))?;
         for entry in
             fs::read_dir(src).map_err(|e| format!("Error reading {}: {}", src.display(), e))?
         {
@@ -495,7 +512,11 @@ fn copy_recursive_progress(
 fn register_cancel(app: &tauri::AppHandle, id: &str) -> Arc<AtomicBool> {
     let flag = Arc::new(AtomicBool::new(false));
     if let Some(state) = app.try_state::<AppState>() {
-        state.cancel_flags.lock().unwrap().insert(id.to_string(), flag.clone());
+        state
+            .cancel_flags
+            .lock()
+            .unwrap()
+            .insert(id.to_string(), flag.clone());
     }
     flag
 }
@@ -544,9 +565,7 @@ fn list_dir(path: String) -> Result<DirListing, String> {
             .cmp(&a.is_dir)
             .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
     });
-    let parent = dir
-        .parent()
-        .map(|p| p.to_string_lossy().to_string());
+    let parent = dir.parent().map(|p| p.to_string_lossy().to_string());
     Ok(DirListing {
         path: dir.to_string_lossy().to_string(),
         parent,
@@ -644,7 +663,9 @@ fn expand_env(path: String) -> Result<String, String> {
                     i += 1;
                 }
                 let var_name: String = chars[start..i].iter().collect();
-                if i < len { i += 1; }
+                if i < len {
+                    i += 1;
+                }
                 match std::env::var(&var_name) {
                     Ok(val) => result.push_str(&val),
                     Err(_) => {
@@ -690,8 +711,7 @@ fn make_dir(parent: String, name: String) -> Result<(), String> {
     if path.exists() {
         return Err(format!("\"{}\" already exists.", name));
     }
-    fs::create_dir(&path)
-        .map_err(|e| format!("Error creating folder \"{}\": {}", name, e))?;
+    fs::create_dir(&path).map_err(|e| format!("Error creating folder \"{}\": {}", name, e))?;
     Ok(())
 }
 
@@ -791,7 +811,8 @@ fn delete_recursive_progress(
                 if cancel.load(Ordering::Relaxed) {
                     return Err("CANCELLED".to_string());
                 }
-                fs::remove_file(&p).map_err(|e| format!("Error deleting {}: {}", p.display(), e))?;
+                fs::remove_file(&p)
+                    .map_err(|e| format!("Error deleting {}: {}", p.display(), e))?;
                 *counter += 1;
                 report_delete_progress(app, id, *counter, total, &p.to_string_lossy());
             }
@@ -847,7 +868,11 @@ fn copy_path(src: String, dst_dir: String) -> Result<String, String> {
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .ok_or_else(|| "Invalid source path.".to_string())?;
-    if src_path.parent().map(|p| p == dst_path.as_path()).unwrap_or(false) {
+    if src_path
+        .parent()
+        .map(|p| p == dst_path.as_path())
+        .unwrap_or(false)
+    {
         return Err("File is already in this folder.".to_string());
     }
     if is_descendant(&dst_path, &src_path) {
@@ -869,7 +894,11 @@ fn move_path(src: String, dst_dir: String) -> Result<String, String> {
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .ok_or_else(|| "Invalid source path.".to_string())?;
-    if src_path.parent().map(|p| p == dst_path.as_path()).unwrap_or(false) {
+    if src_path
+        .parent()
+        .map(|p| p == dst_path.as_path())
+        .unwrap_or(false)
+    {
         return Err("File is already in this folder.".to_string());
     }
     if is_descendant(&dst_path, &src_path) {
@@ -906,29 +935,25 @@ fn link_path(src: String, dst_dir: String, hard: bool) -> Result<String, String>
     let dest = resolve_dest(&dst_path, &name);
 
     if hard {
-        fs::hard_link(&src_path, &dest).map_err(|e| {
-            format!("Error creating hardlink of {}: {}", src_path.display(), e)
-        })?;
+        fs::hard_link(&src_path, &dest)
+            .map_err(|e| format!("Error creating hardlink of {}: {}", src_path.display(), e))?;
     } else {
         #[cfg(unix)]
         {
-            std::os::unix::fs::symlink(&src_path, &dest).map_err(|e| {
-                format!("Error creating symlink of {}: {}", src_path.display(), e)
-            })?;
+            std::os::unix::fs::symlink(&src_path, &dest)
+                .map_err(|e| format!("Error creating symlink of {}: {}", src_path.display(), e))?;
         }
         #[cfg(windows)]
         {
-            let meta = fs::metadata(&src_path).map_err(|e| {
-                format!("Error reading {}: {}", src_path.display(), e)
-            })?;
+            let meta = fs::metadata(&src_path)
+                .map_err(|e| format!("Error reading {}: {}", src_path.display(), e))?;
             let result = if meta.is_dir() {
                 std::os::windows::fs::symlink_dir(&src_path, &dest)
             } else {
                 std::os::windows::fs::symlink_file(&src_path, &dest)
             };
-            result.map_err(|e| {
-                format!("Error creating symlink of {}: {}", src_path.display(), e)
-            })?;
+            result
+                .map_err(|e| format!("Error creating symlink of {}: {}", src_path.display(), e))?;
         }
     }
     Ok(dest.to_string_lossy().to_string())
@@ -950,7 +975,11 @@ async fn copy_path_progress(
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .ok_or_else(|| "Invalid source path.".to_string())?;
-    if src_path.parent().map(|p| p == dst_path.as_path()).unwrap_or(false) {
+    if src_path
+        .parent()
+        .map(|p| p == dst_path.as_path())
+        .unwrap_or(false)
+    {
         return Err("File is already in this folder.".to_string());
     }
     if is_descendant(&dst_path, &src_path) {
@@ -997,7 +1026,11 @@ async fn move_path_progress(
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .ok_or_else(|| "Invalid source path.".to_string())?;
-    if src_path.parent().map(|p| p == dst_path.as_path()).unwrap_or(false) {
+    if src_path
+        .parent()
+        .map(|p| p == dst_path.as_path())
+        .unwrap_or(false)
+    {
         return Err("File is already in this folder.".to_string());
     }
     if is_descendant(&dst_path, &src_path) {
@@ -1051,7 +1084,10 @@ fn cancel_copy(id: String, app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn get_copy_progress(id: String, app: tauri::AppHandle) -> Result<Option<serde_json::Value>, String> {
+fn get_copy_progress(
+    id: String,
+    app: tauri::AppHandle,
+) -> Result<Option<serde_json::Value>, String> {
     Ok(app
         .try_state::<AppState>()
         .and_then(|s| s.progress.lock().unwrap().get(&id).cloned()))
@@ -1076,16 +1112,20 @@ fn get_about_info() -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 fn read_text_file(path: String) -> Result<String, String> {
-    let data = fs::read(Path::new(&path))
-        .map_err(|e| format!("Cannot read file {}: {}", path, e))?;
-    let capped = if data.len() > 1_000_000 { &data[..1_000_000] } else { &data[..] };
+    let data =
+        fs::read(Path::new(&path)).map_err(|e| format!("Cannot read file {}: {}", path, e))?;
+    let capped = if data.len() > 1_000_000 {
+        &data[..1_000_000]
+    } else {
+        &data[..]
+    };
     Ok(String::from_utf8_lossy(capped).to_string())
 }
 
 #[tauri::command]
 fn read_file_chunk(path: String, offset: u64, limit: u64) -> Result<String, String> {
-    let meta = fs::metadata(Path::new(&path))
-        .map_err(|e| format!("Cannot read file {}: {}", path, e))?;
+    let meta =
+        fs::metadata(Path::new(&path)).map_err(|e| format!("Cannot read file {}: {}", path, e))?;
     let file_size = meta.len();
     if offset >= file_size {
         return Ok(String::new());
@@ -1113,7 +1153,11 @@ fn path_info(path: String) -> Result<FileInfo, String> {
         format!("{:o}", meta.permissions().mode())
     };
     #[cfg(not(unix))]
-    let permissions = if meta.permissions().readonly() { "readonly".into() } else { "read/write".into() };
+    let permissions = if meta.permissions().readonly() {
+        "readonly".into()
+    } else {
+        "read/write".into()
+    };
     Ok(FileInfo {
         name: p
             .file_name()
@@ -1150,9 +1194,9 @@ fn should_try_execute(path: &Path) -> bool {
         let lower = ext.to_ascii_lowercase();
         const BLOCKED: &[&str] = &[
             "mp4", "mp3", "avi", "mkv", "mov", "flv", "wmv", "webm", "m4v", "mpg", "mpeg", "3gp",
-            "wav", "flac", "aac", "ogg", "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg",
-            "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "md", "json", "xml",
-            "html", "htm", "css", "zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso",
+            "wav", "flac", "aac", "ogg", "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "pdf",
+            "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "md", "json", "xml", "html", "htm",
+            "css", "zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso",
         ];
         if BLOCKED.contains(&lower.as_str()) {
             return false;
@@ -1181,8 +1225,8 @@ fn shell_execute(path: &Path, verb: Option<&str>) -> Result<(), String> {
 
     const SW_SHOWNORMAL: i32 = 1;
 
-    let verb_wide: Option<Vec<u16>> = verb
-        .map(|v| v.encode_utf16().chain(std::iter::once(0)).collect());
+    let verb_wide: Option<Vec<u16>> =
+        verb.map(|v| v.encode_utf16().chain(std::iter::once(0)).collect());
     let path_wide: Vec<u16> = path
         .as_os_str()
         .encode_wide()
@@ -1193,7 +1237,10 @@ fn shell_execute(path: &Path, verb: Option<&str>) -> Result<(), String> {
     let result = unsafe {
         ShellExecuteW(
             ptr::null_mut(),
-            verb_wide.as_ref().map(|v| v.as_ptr()).unwrap_or(ptr::null()),
+            verb_wide
+                .as_ref()
+                .map(|v| v.as_ptr())
+                .unwrap_or(ptr::null()),
             path_wide.as_ptr(),
             ptr::null(),
             ptr::null(),
@@ -1289,7 +1336,10 @@ fn edit_path(path: String) -> Result<(), String> {
     }
 
     #[cfg(target_os = "macos")]
-    let result = std::process::Command::new("open").arg("-e").arg(&path).spawn();
+    let result = std::process::Command::new("open")
+        .arg("-e")
+        .arg(&path)
+        .spawn();
 
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     let result = default_editor_command(&path).spawn();
@@ -1584,7 +1634,11 @@ fn app_binary(app_path: &str) -> Option<String> {
         .map(|e| e.path().to_string_lossy().to_string())
 }
 
-fn launch(mut cmd: std::process::Command, in_terminal: bool, cwd: Option<&Path>) -> Result<(), String> {
+fn launch(
+    mut cmd: std::process::Command,
+    in_terminal: bool,
+    cwd: Option<&Path>,
+) -> Result<(), String> {
     if in_terminal {
         return run_in_terminal(cmd, cwd);
     }
@@ -1595,7 +1649,10 @@ fn launch(mut cmd: std::process::Command, in_terminal: bool, cwd: Option<&Path>)
     {
         let prog = cmd.get_program().to_string_lossy().to_string();
         if prog.ends_with(".app") {
-            let args: Vec<String> = cmd.get_args().map(|a| a.to_string_lossy().to_string()).collect();
+            let args: Vec<String> = cmd
+                .get_args()
+                .map(|a| a.to_string_lossy().to_string())
+                .collect();
             if let Some(bin) = app_binary(&prog) {
                 if std::process::Command::new(&bin).args(&args).spawn().is_ok() {
                     return Ok(());
@@ -1683,7 +1740,10 @@ fn set_fuzzy_search(fuzzy_search: bool, app: tauri::AppHandle) -> Result<AppSett
 }
 
 #[tauri::command]
-fn set_column_widths(column_widths: ColumnWidths, _app: tauri::AppHandle) -> Result<AppSettings, String> {
+fn set_column_widths(
+    column_widths: ColumnWidths,
+    _app: tauri::AppHandle,
+) -> Result<AppSettings, String> {
     let mut settings = load_settings();
     settings.column_widths = column_widths;
     save_settings(&settings)?;
