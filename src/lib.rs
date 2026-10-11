@@ -1161,6 +1161,45 @@ fn read_file_chunk(path: String, offset: u64, limit: u64) -> Result<String, Stri
 }
 
 #[tauri::command]
+async fn authorize_view_image(
+    path: String,
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+) -> Result<String, String> {
+    if window.label() != "view" {
+        return Err("Images can only be opened in the file viewer.".to_string());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let source = PathBuf::from(&path);
+        let ext = source
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        if !matches!(
+            ext.as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "bmp"
+        ) {
+            return Err("Unsupported image format.".to_string());
+        }
+        let canonical =
+            fs::canonicalize(&source).map_err(|e| format!("Cannot open image {}: {}", path, e))?;
+        if !fs::metadata(&canonical)
+            .map_err(|e| format!("Cannot read image {}: {}", path, e))?
+            .is_file()
+        {
+            return Err("The selected image is not a file.".to_string());
+        }
+        app.asset_protocol_scope()
+            .allow_file(&canonical)
+            .map_err(|e| format!("Cannot authorize image {}: {}", path, e))?;
+        Ok(canonical.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|e| format!("Error opening image: {}", e))?
+}
+
+#[tauri::command]
 fn path_info(path: String) -> Result<FileInfo, String> {
     let p = PathBuf::from(&path);
     let meta = fs::metadata(&p).map_err(|e| format!("Error reading {}: {}", path, e))?;
@@ -2096,6 +2135,7 @@ pub fn run() {
             get_about_info,
             read_text_file,
             read_file_chunk,
+            authorize_view_image,
             path_info,
             open_path,
             edit_path,
