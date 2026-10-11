@@ -22,7 +22,7 @@
   margin: 0;
   padding: 8px 10px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size, 14px);
   white-space: pre;
   overflow: auto;
   outline: none;
@@ -31,6 +31,17 @@
 .view-pre.word-wrap {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.view-pre .wrap-marker {
+  color: var(--dir);
+  font-size: 0.85em;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+.view-pre .wrap-marker::after {
+  content: " ↪";
 }
 
 .view-body .hint {
