@@ -1,0 +1,96 @@
+/*
+ * Copyright 2026 Philip Bonev
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://apache.org
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+.search-body .row input[type="text"] {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.search-body .row label.lbl {
+  min-width: 90px;
+}
+
+.search-body .row input[type="radio"] + label,
+.search-body .row input[type="checkbox"] + label {
+  margin-right: 12px;
+}
+
+.results-label {
+  font-weight: bold;
+  padding: 4px 0;
+}
+
+.search-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1 1 auto;
+  min-height: 120px;
+  border: 1px solid var(--modal-border);
+  overflow-y: auto;
+  outline: none;
+}
+
+.search-results li {
+  padding: 4px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+
+.search-results li.selected {
+  background: var(--selected-bg);
+  color: var(--selected-text);
+}
+
+.search-results li.empty {
+  color: var(--dim);
+}
+
+.search-body .hint {
+  padding: 2px 0 6px;
+}
+
+.search-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 8px;
+  flex: 0 0 auto;
+}
+
+.search-actions button {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 4px 16px;
+  border: 1px solid var(--btn-border);
+  background: var(--btn-bg);
+  color: var(--toolbar-text);
+  cursor: pointer;
+}
+
+.search-actions button:hover {
+  background: var(--btn-hover-bg);
+}
+
+.search-actions button.primary {
+  background: var(--head);
+}
+
+.search-actions button:focus-visible {
+  outline: 2px solid var(--dir);
+  outline-offset: 1px;
+}

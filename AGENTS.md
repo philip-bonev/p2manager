@@ -7,12 +7,15 @@
 
 ## 2. Tech Stack & Architecture
 - **Framework:** Tauri v2 (Rust backend + WebView frontend). Rust edition 2024.
-- **Backend:** `/src/lib.rs` (single file, ~1700 lines). All Tauri commands live here.
+- **Backend:** `/src/lib.rs` (single file, ~1900 lines). All Tauri commands live here.
 - **Frontend files in `/web`:**
-  - `index.html`, `main.js` — main window (dual-panel file manager)
-  - `settings.html`, `settings.js` — runtime settings window (theme/font/font-size)
-  - `i18n.js` — bg/en translations + helpers
-  - `styles.css` — themes + layout
+  - `index.html`, `main.js`, `styles.css` — main window (dual-panel file manager)
+  - `settings.html`, `settings.js`, `settings.css` — settings window (theme/font/font-size/diff/edit/show hidden)
+  - `help.html`, `help.js`, `help.css` — help/about window (help text + license tabs)
+  - `search.html`, `search.js`, `search.css` — file search window (glob/regex + content search)
+  - `common.css` — shared styles: themes, base, scrollbars, form widgets (`.opt`, `.row`, `.hint`, `select`, `input[type=text]`, `hr`), window chrome (`.win-header`, `.win-title`, `.win-close`, `.win-body`)
+  - `appearance.js` — shared module for theme/font application + `appearance-changed`/`onThemeChanged` listeners (`initAppearance(onChange)`)
+  - `i18n.js` — bg/en translations + helpers (shared by all windows)
 - Served as `frontendDist: "web"`. There is NO npm/package.json — do not run `npm install`; edit files directly.
 - **Config:** `tauri.conf.json` (main window label `"main"`), `capabilities/default.json`, `Cargo.toml`.
 - **Plugins:** opener, dialog, fs, window-state, single-instance, log.
@@ -21,15 +24,17 @@
 ## 3. Architecture & Data Flow (important)
 - **Settings:** stored as JSON at `~/.p2manager/config.json` (cross-platform via HOME/USERPROFILE). Loaded in `.setup()` into `AppState.settings`. Window geometry (width/height/x/y) is saved on `RunEvent::ExitRequested` and restored in `.setup()`. `AppSettings` fields: `theme`, `font`, `fontSize`, `diffCommand`, `diffInTerminal`, `editCommand`, `editInTerminal`, `favorites`, `favApps`, `width`, `height`, `x`, `y`, `showHidden`, `fuzzySearch`, `columnWidths` (`{name, ext, size, date}` as `f64`).
 - **Invoke arg naming:** JS passes camelCase keys (e.g. `newSettings`), Rust receives snake_case (`new_settings`) — Tauri maps automatically.
-- **Windows:** main window is created from `tauri.conf.json`; settings window label `"settings"` is opened at runtime via `open_settings`.
-- **Tauri v2 API notes:** `.run(closure)` is on `App` (use `.build(context).expect(...).run(...)`); `RunEvent::ExitRequested{code, api}`; `WindowEvent::Resized(PhysicalSize<u32>)` / `Moved(PhysicalPosition<i32>)`.
+- **Windows:** main window is created from `tauri.conf.json`. Secondary windows (`"settings"`, `"help"`, `"search"`) are created at runtime via `open_child_window()` (`open_settings` / `open_help` / `open_search` commands): centered on the main window's center (physical coords + monitor clamp), focused if already open. Each has its own html/js/css; shared CSS in `common.css`, shared theme/font logic in `appearance.js`.
+- **Close logic:** closing `main` closes all secondary windows and exits the app. Closing a secondary window closes only itself (main keeps the app alive); `RunEvent::ExitRequested` has an explicit check (`code.is_none() && main exists → api.prevent_exit()`).
+- **Search window events:** `search.js` emits `search-window-ready` on load; main responds with `emit("search-open", { basePath })`. Choosing a result emits `search-navigate", { path }` and the search window closes itself; main navigates the active panel.
+- **Tauri v2 API notes:** `.run(closure)` is on `App` (use `.build(context).expect(...).run(...)`); `RunEvent::ExitRequested{code, api}`; `WindowEvent::Resized(PhysicalSize<u32>)` / `Moved(PhysicalPosition<i32>)`. `WebviewWindowBuilder::inner_size/position` take logical f64 values — for exact physical placement use `window.set_position(PhysicalPosition)` after build.
 
 ## 4. Backend Commands (in `src/lib.rs`)
-`list_dir`, `home_dir`, `make_dir`, `rename_path`, `delete_path`, `delete_path_progress` (async with progress), `copy_path`, `move_path`, `link_path` (hard/soft link), `read_text_file`, `read_file_chunk`, `path_info`, `open_path`, `edit_path` (default editor: macOS `open -e`, Linux `$EDITOR`/`xdg-open`, Windows `ShellExecuteW` verb `"edit"`), `quit_app`, `get_appearance`, `set_theme`, `set_font`, `set_font_size`, `set_diff_command`, `set_diff_in_terminal`, `set_edit_command`, `set_edit_in_terminal`, `set_show_hidden`, `set_fuzzy_search`, `set_column_widths`, `get_favorites`, `set_favorites`, `get_fav_apps`, `set_fav_apps`, `open_settings`, `search_files` (async, glob/regex, exclusions, recursive, content search), `copy_path_progress` / `move_path_progress` (async with per-file + overall progress), `get_copy_progress` (returns `Option<serde_json::Value>`), `cancel_copy`, `run_diff`, `run_edit`, `run_command`, `get_app_version`, `expand_env` (expands `%VAR%` on Windows, `$VAR`/`${VAR}` on Unix).
+`list_dir`, `home_dir`, `make_dir`, `rename_path`, `delete_path`, `delete_path_progress` (async with progress), `copy_path`, `move_path`, `link_path` (hard/soft link), `read_text_file`, `read_file_chunk`, `path_info`, `open_path`, `edit_path` (default editor: macOS `open -e`, Linux `$EDITOR`/`xdg-open`, Windows `ShellExecuteW` verb `"edit"`), `quit_app`, `get_appearance`, `set_theme`, `set_font`, `set_font_size`, `set_diff_command`, `set_diff_in_terminal`, `set_edit_command`, `set_edit_in_terminal`, `set_show_hidden`, `set_fuzzy_search`, `set_column_widths`, `get_favorites`, `set_favorites`, `get_fav_apps`, `set_fav_apps`, `open_settings`, `open_help`, `open_search` (open/center secondary windows), `search_files` (async, glob/regex, exclusions, recursive, content search), `copy_path_progress` / `move_path_progress` (async with per-file + overall progress), `get_copy_progress` (returns `Option<serde_json::Value>`), `cancel_copy`, `run_diff`, `run_edit`, `run_command`, `get_app_version`, `get_about_info`, `expand_env` (expands `%VAR%` on Windows, `$VAR`/`${VAR}` on Unix).
 - `AppState.progress` is `HashMap<String, serde_json::Value>` — supports both `CopyProgress` and `DeleteProgress` structs.
 
 ## 5. Frontend Key Bindings (F-key bar)
-F1 help, F2 diff (compare files), F3 view file, F4 edit, F5 copy, F6 move, F7 new folder, F8 delete, F9 change folder, F10 quit, F11 rename, F12 file info. The F5 copy dialog shows hardlink/softlink checkboxes and a progress dialog with two bars (current file + overall).
+F1 help (opens the help window), F2 diff (compare files), F3 view file, F4 edit, F5 copy, F6 move, F7 new folder, F8 delete, F9 change folder, F10 quit, F11 rename, F12 file info. Toolbar: Търсене opens the search window; Настройки opens the settings window. The F5 copy dialog shows hardlink/softlink checkboxes and a progress dialog with two bars (current file + overall).
 
 **Standard clipboard (Ctrl/Cmd):** Ctrl/Cmd+C copy, Ctrl/Cmd+X cut, Ctrl/Cmd+V paste, Ctrl/Cmd+A select all, Ctrl/Cmd+D favorites, Ctrl/Cmd+S fav apps. Ctrl/Cmd+V uses the same `copyOrMove` flow with progress as F5/F6.
 **Navigation:** Ctrl/Cmd+↓ change folder, Ctrl/Cmd+R run command, Ctrl/Cmd+←/→ open dir in other panel, Ctrl/Cmd+U swap panels.

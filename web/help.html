@@ -1,0 +1,53 @@
+<!--
+  Copyright 2026 Philip Bonev
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://apache.org
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
+<!doctype html>
+<html lang="bg">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="common.css" />
+    <link rel="stylesheet" href="help.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>За приложението</title>
+    <script type="module" src="/help.js" defer></script>
+  </head>
+
+  <body>
+    <header class="win-header">
+      <span class="win-title" data-i18n="help.title">За приложението</span>
+      <button class="win-close" id="btn-close" data-i18n-title="btn.close"><svg class="tb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span data-i18n="btn.close">Затвори</span></button>
+    </header>
+
+    <div class="about-header">
+      <div class="app-name">Panel Manager</div>
+      <div>
+        <span data-i18n="help.version">Версия</span>: <span id="app-version"></span><span id="app-date"></span>
+      </div>
+      <div>
+        <span data-i18n="help.copyright">Авторско право</span>: 2026 Philip Bonev ·
+        <span data-i18n="help.license">Лиценз</span>: Apache 2.0
+      </div>
+    </div>
+
+    <div class="about-tabs">
+      <button class="about-tab active" data-tab="help" data-i18n="help.tabHelp">Помощ</button>
+      <button class="about-tab" data-tab="license" data-i18n="help.tabLicense">Лиценз</button>
+    </div>
+
+    <div class="about-tab-panel active" data-panel="help"><pre id="help-text"></pre></div>
+    <div class="about-tab-panel" data-panel="license"><pre id="license-text"></pre></div>
+  </body>
+</html>

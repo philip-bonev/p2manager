@@ -1,0 +1,349 @@
+/*
+ * Copyright 2026 Philip Bonev
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://apache.org
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+:root {
+  color-scheme: light;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-size: 14px;
+  --bg: #ffffff;
+  --bg-active: #f0f0f0;
+  --text: #1f1f1f;
+  --dim: #6e6e6e;
+  --dir: #0066cc;
+  --parent: #8a8a8a;
+  --head: #e3e3e3;
+  --head-text: #000000;
+  --head-inactive: #f0f0f0;
+  --selected-bg: #cce4ff;
+  --selected-text: #1f1f1f;
+  --marked-bg: #fff3b8;
+  --toolbar-bg: #f3f3f3;
+  --toolbar-text: #1f1f1f;
+  --btn-bg: #ffffff;
+  --btn-border: #b5b5b5;
+  --btn-hover-bg: #ffffff;
+  --btn-hover-border: #000000;
+  --btn-active-bg: #e0e0e0;
+  --sep: #c0c0c0;
+  --divider: #c0c0c0;
+  --footer-bg: #ececec;
+  --footer-text: #1f1f1f;
+  --fnum: #555555;
+  --footer-hover-bg: #d9d9d9;
+  --status-bg: #e6e6e6;
+  --status-text: #1f1f1f;
+  --modal-border: #c0c0c0;
+  --modal-input-bg: #ffffff;
+  --modal-input-text: #1f1f1f;
+  --modal-actions-border: #d5d5d5;
+  --menu-hover-bg: #cce4ff;
+  --menu-hover-text: #1f1f1f;
+  --scrollbar-thumb: #b8b8b8;
+  --panel-inactive-opacity: 0.55;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #1e1e1e;
+    --bg-active: #2a2a2a;
+    --text: #e8e8e8;
+    --dim: #9a9a9a;
+    --dir: #8fce7f;
+    --parent: #b8b8b8;
+    --head: #3a3a3a;
+    --head-text: #e8e8e8;
+    --head-inactive: #2c2c2c;
+    --selected-bg: #264f78;
+    --selected-text: #ffffff;
+    --marked-bg: #4d4d2b;
+    --toolbar-bg: #333333;
+    --toolbar-text: #e8e8e8;
+    --btn-bg: #3a3a3a;
+    --btn-border: #555555;
+    --btn-hover-bg: #444444;
+    --btn-hover-border: #777777;
+    --btn-active-bg: #4a4a4a;
+    --sep: #555555;
+    --divider: #444444;
+    --footer-bg: #2a2a2a;
+    --footer-text: #e8e8e8;
+    --fnum: #e0a94f;
+    --footer-hover-bg: #3a3a3a;
+    --status-bg: #2a2a2a;
+    --status-text: #e8e8e8;
+    --modal-border: #555555;
+    --modal-input-bg: #1e1e1e;
+    --modal-input-text: #e8e8e8;
+    --modal-actions-border: #444444;
+    --menu-hover-bg: #264f78;
+    --menu-hover-text: #ffffff;
+    --scrollbar-thumb: #555555;
+    --panel-inactive-opacity: 0.4;
+  }
+}
+
+:root.theme-light {
+  color-scheme: light;
+  --bg: #ffffff;
+  --bg-active: #f0f0f0;
+  --text: #1f1f1f;
+  --dim: #6e6e6e;
+  --dir: #0066cc;
+  --parent: #8a8a8a;
+  --head: #e3e3e3;
+  --head-text: #000000;
+  --head-inactive: #f0f0f0;
+  --selected-bg: #cce4ff;
+  --selected-text: #1f1f1f;
+  --marked-bg: #fff3b8;
+  --toolbar-bg: #f3f3f3;
+  --toolbar-text: #1f1f1f;
+  --btn-bg: #ffffff;
+  --btn-border: #b5b5b5;
+  --btn-hover-bg: #ffffff;
+  --btn-hover-border: #000000;
+  --btn-active-bg: #e0e0e0;
+  --sep: #c0c0c0;
+  --divider: #c0c0c0;
+  --footer-bg: #ececec;
+  --footer-text: #1f1f1f;
+  --fnum: #555555;
+  --footer-hover-bg: #d9d9d9;
+  --status-bg: #e6e6e6;
+  --status-text: #1f1f1f;
+  --modal-border: #c0c0c0;
+  --modal-input-bg: #ffffff;
+  --modal-input-text: #1f1f1f;
+  --modal-actions-border: #d5d5d5;
+  --menu-hover-bg: #cce4ff;
+  --menu-hover-text: #1f1f1f;
+  --scrollbar-thumb: #b8b8b8;
+  --panel-inactive-opacity: 0.55;
+}
+
+:root.theme-dark {
+  color-scheme: dark;
+  --bg: #1e1e1e;
+  --bg-active: #2a2a2a;
+  --text: #e8e8e8;
+  --dim: #9a9a9a;
+  --dir: #8fce7f;
+  --parent: #b8b8b8;
+  --head: #3a3a3a;
+  --head-text: #e8e8e8;
+  --head-inactive: #2c2c2c;
+  --selected-bg: #264f78;
+  --selected-text: #ffffff;
+  --marked-bg: #4d4d2b;
+  --toolbar-bg: #333333;
+  --toolbar-text: #e8e8e8;
+  --btn-bg: #3a3a3a;
+  --btn-border: #555555;
+  --btn-hover-bg: #444444;
+  --btn-hover-border: #777777;
+  --btn-active-bg: #4a4a4a;
+  --sep: #555555;
+  --divider: #444444;
+  --footer-bg: #2a2a2a;
+  --footer-text: #e8e8e8;
+  --fnum: #e0a94f;
+  --footer-hover-bg: #3a3a3a;
+  --status-bg: #2a2a2a;
+  --status-text: #e8e8e8;
+  --modal-border: #555555;
+  --modal-input-bg: #1e1e1e;
+  --modal-input-text: #e8e8e8;
+  --modal-actions-border: #444444;
+  --menu-hover-bg: #264f78;
+  --menu-hover-text: #ffffff;
+  --scrollbar-thumb: #555555;
+  --panel-inactive-opacity: 0.4;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font, "Menlo", "Monaco", "Consolas", monospace);
+  font-size: var(--font-size, 14px);
+  color: var(--text);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------- Shared window chrome (secondary windows) ---------- */
+
+.win-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--head);
+  color: var(--head-text);
+  font-weight: bold;
+  user-select: none;
+  flex: 0 0 auto;
+}
+
+.win-title {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.win-close {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 2px 8px;
+  border: 1px solid var(--btn-border);
+  border-radius: 3px;
+  background: var(--btn-bg);
+  color: var(--toolbar-text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+.win-close:hover {
+  background: var(--btn-hover-bg);
+  border-color: var(--btn-hover-border);
+}
+
+.win-close .tb-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+
+.win-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- Shared form widgets ---------- */
+
+input[type="text"] {
+  font-family: inherit;
+  font-size: var(--font-size, 14px);
+  padding: 4px 6px;
+  border: 1px solid var(--modal-border);
+  background: var(--modal-input-bg);
+  color: var(--modal-input-text);
+  outline: none;
+}
+
+select {
+  font-family: inherit;
+  font-size: var(--font-size, 14px);
+  padding: 4px 8px;
+  border: 1px solid var(--modal-border);
+  border-radius: 3px;
+  background: var(--modal-input-bg);
+  color: var(--modal-input-text);
+  cursor: pointer;
+}
+
+input[type="radio"],
+input[type="checkbox"] {
+  accent-color: var(--dir);
+  cursor: pointer;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--modal-actions-border);
+  margin: 8px 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  flex-wrap: wrap;
+}
+
+.row label {
+  white-space: nowrap;
+}
+
+.row button {
+  font-family: inherit;
+  font-size: var(--font-size, 14px);
+  flex: 0 0 auto;
+  margin-left: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--modal-border);
+  border-radius: 3px;
+  background: var(--modal-input-bg);
+  color: var(--modal-input-text);
+  cursor: pointer;
+}
+
+.row button:hover {
+  filter: brightness(1.15);
+}
+
+.opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.opt:hover {
+  background: var(--selected-bg);
+  color: var(--selected-text);
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--dim);
+  padding: 2px 10px 6px;
+}

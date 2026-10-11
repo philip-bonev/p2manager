@@ -1,0 +1,95 @@
+<!--
+  Copyright 2026 Philip Bonev
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://apache.org
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
+<!doctype html>
+<html lang="bg">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="common.css" />
+    <link rel="stylesheet" href="search.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Търсене на файлове</title>
+    <script type="module" src="/search.js" defer></script>
+  </head>
+
+  <body>
+    <header class="win-header">
+      <span class="win-title" data-i18n="searchFiles.title">Търсене на файлове</span>
+      <button class="win-close" id="btn-close" data-i18n-title="btn.close"><svg class="tb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span data-i18n="btn.close">Затвори</span></button>
+    </header>
+
+    <main class="win-body search-body">
+      <div class="row">
+        <label class="lbl" for="s-base" data-i18n="searchFiles.basePath">Път:</label>
+        <input type="text" id="s-base" autocomplete="off" />
+      </div>
+      <div class="row">
+        <label class="lbl" for="s-excl" data-i18n="searchFiles.exclusions">Изключения:</label>
+        <input type="text" id="s-excl" autocomplete="off" />
+      </div>
+      <div class="row">
+        <label class="lbl" for="s-pattern" data-i18n="searchFiles.pattern">Шаблон:</label>
+        <input type="text" id="s-pattern" autocomplete="off" />
+      </div>
+      <div class="row">
+        <input type="radio" name="fileMode" id="s-mode-glob" value="glob" checked />
+        <label for="s-mode-glob" data-i18n="searchFiles.glob">Файлов шаблон (file*.sh)</label>
+        <input type="radio" name="fileMode" id="s-mode-re" value="regexp" />
+        <label for="s-mode-re" data-i18n="searchFiles.regexp">Регулярен израз</label>
+      </div>
+      <div class="row">
+        <input type="checkbox" id="s-igcase" checked />
+        <label for="s-igcase" data-i18n="searchFiles.ignoreCase">Без разлика в регистъра</label>
+        <input type="checkbox" id="s-rec" checked />
+        <label for="s-rec" data-i18n="searchFiles.recursive">Рекурсивно</label>
+      </div>
+
+      <hr />
+
+      <div class="row">
+        <input type="checkbox" id="s-content-enable" />
+        <label for="s-content-enable" data-i18n="searchFiles.contentEnable">Търсене в съдържанието</label>
+      </div>
+      <div id="s-content-panel" class="content-panel">
+        <div class="row">
+          <label class="lbl" for="s-content-pattern" data-i18n="searchFiles.contentPattern">Текст:</label>
+          <input type="text" id="s-content-pattern" autocomplete="off" />
+        </div>
+        <div class="row">
+          <input type="radio" name="contentMode" id="s-c-mode-text" value="text" checked />
+          <label for="s-c-mode-text" data-i18n="searchFiles.contentText">Обикновен текст</label>
+          <input type="radio" name="contentMode" id="s-c-mode-re" value="regexp" />
+          <label for="s-c-mode-re" data-i18n="searchFiles.contentRegexp">Регулярен израз</label>
+        </div>
+        <div class="row">
+          <input type="checkbox" id="s-c-igcase" checked />
+          <label for="s-c-igcase" data-i18n="searchFiles.ignoreCase">Без разлика в регистъра</label>
+        </div>
+      </div>
+
+      <hr />
+
+      <div class="results-label" data-i18n="searchFiles.results">Резултати:</div>
+      <ul class="search-results" id="s-results" tabindex="0"></ul>
+      <div class="hint" id="s-hint"></div>
+
+      <div class="search-actions">
+        <button type="button" id="s-cancel" data-i18n="btn.cancel">Отказ</button>
+        <button type="button" id="s-search" class="primary" data-i18n="searchFiles.search">Търсене</button>
+      </div>
+    </main>
+  </body>
+</html>

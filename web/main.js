@@ -14,9 +14,11 @@
  */
 
 import { t, tp, applyStatic } from "/i18n.js";
+import { applyFont, applyThemePref, resolveOsTheme } from "/appearance.js";
 
 const { invoke } = window.__TAURI__.core;
 const { open: openDialog } = window.__TAURI__.dialog;
+const { emit } = window.__TAURI__.event;
 const { getCurrentWindow } = window.__TAURI__.window;
 
 applyStatic();
@@ -28,38 +30,11 @@ let showHidden = true;
 const isMac = navigator.platform.startsWith("Mac") || navigator.userAgent.includes("Mac");
 let clipboard = { files: [], isCut: false };
 
-const FONT_MAP = {
-  default: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-  monospace: "Menlo, Monaco, Consolas, 'DejaVu Sans Mono', monospace",
-  serif: "Georgia, 'Times New Roman', serif",
-  sans: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
-};
-
-function setThemeClass(theme) {
-  rootEl.classList.toggle("theme-dark", theme === "dark");
-  rootEl.classList.toggle("theme-light", theme === "light");
-}
-
-function applyTheme() {
-  if (themePref === "light") {
-    setThemeClass("light");
-  } else if (themePref === "dark") {
-    setThemeClass("dark");
-  } else {
-    setThemeClass(currentOsTheme);
-  }
-}
-
-function applyAppearance(appearance) {
-  rootEl.style.setProperty("--font", FONT_MAP[appearance.font] || FONT_MAP.default);
-  rootEl.style.setProperty("--font-size", `${appearance.fontSize}px`);
-}
-
 async function syncAppearance() {
   const appearance = await invoke("get_appearance").catch(() => null);
   if (appearance) {
     themePref = appearance.theme;
-    applyAppearance(appearance);
+    applyFont(appearance);
     const nextShowHidden = appearance.showHidden !== false;
     if (nextShowHidden !== showHidden) {
       showHidden = nextShowHidden;
@@ -70,18 +45,8 @@ async function syncAppearance() {
     }
     fuzzyPref = !!appearance.fuzzySearch;
   }
-  try {
-    currentOsTheme = await getCurrentWindow().theme();
-  } catch {
-    currentOsTheme = null;
-  }
-  if (!currentOsTheme) {
-    currentOsTheme =
-      window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light";
-  }
-  applyTheme();
+  currentOsTheme = await resolveOsTheme();
+  applyThemePref(themePref, currentOsTheme);
 }
 
 const state = {
@@ -148,10 +113,6 @@ const modalEl = overlay.querySelector(".modal");
 modalTitle.addEventListener("dblclick", () => {
   modalEl.classList.toggle("maximized");
 });
-
-function escHtml(s) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
 
 function fmtSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -1132,547 +1093,6 @@ async function diffSelected() {
   }
 }
 
-async function helpModal() {
-  const info = await invoke("get_about_info").catch(() => ({ version: "", date: "", license: "" }));
-  const dateLine = info.date ? `${t("help.releaseDate")}: ${info.date}` : "";
-  const html = `
-    <div class="about-header">
-      <div class="app-name">Panel Manager</div>
-      <div>${t("help.version")}: ${info.version}${dateLine ? " · " + dateLine : ""}</div>
-      <div>${t("help.copyright")}: 2026 Philip Bonev · ${t("help.license")}: Apache 2.0</div>
-    </div>
-    <div class="about-tabs">
-      <button class="about-tab active" data-tab="help">${t("help.tabHelp")}</button>
-      <button class="about-tab" data-tab="license">${t("help.tabLicense")}</button>
-    </div>
-    <div class="about-tab-panel active" data-panel="help"><pre>${t("help.text")}</pre></div>
-    <div class="about-tab-panel" data-panel="license"><pre>${escHtml(info.license)}</pre></div>
-  `;
-  showModal(t("help.title"), "html", html, true);
-  modalEl.classList.add("maximized");
-  modalBody.querySelectorAll(".about-tab").forEach((tab) => {
-    tab.addEventListener("mousedown", () => {
-      modalBody.querySelectorAll(".about-tab").forEach((t) => t.classList.remove("active"));
-      modalBody.querySelectorAll(".about-tab-panel").forEach((p) => p.classList.remove("active"));
-      tab.classList.add("active");
-      modalBody.querySelector(`.about-tab-panel[data-panel="${tab.dataset.tab}"]`).classList.add("active");
-    });
-  });
-}
-
-function fileSearchDialog() {
-  lastFocused = document.activeElement;
-  modalTitle.textContent = t("searchFiles.title");
-  modalBody.innerHTML = "";
-  modalActions.innerHTML = "";
-  modalEl.classList.add("search-modal");
-  const origClose = closeModal;
-  const cleanup = () => modalEl.classList.remove("search-modal");
-  const doClose = () => {
-    cleanup();
-    origClose();
-  };
-
-  const activePath = state[activeSide].path || "";
-
-  const mkRow = (labelKey, input) => {
-    const row = document.createElement("div");
-    row.className = "row";
-    const lab = document.createElement("label");
-    lab.textContent = t(labelKey);
-    lab.style.minWidth = "90px";
-    row.appendChild(lab);
-    row.appendChild(input);
-    return row;
-  };
-
-  const baseInput = document.createElement("input");
-  baseInput.type = "text";
-  baseInput.value = activePath;
-  baseInput.style.flex = "1";
-  baseInput.autocomplete = "off";
-  modalBody.appendChild(mkRow("searchFiles.basePath", baseInput));
-
-  const exclInput = document.createElement("input");
-  exclInput.type = "text";
-  exclInput.placeholder = t("searchFiles.exclusionsHint");
-  exclInput.style.flex = "1";
-  exclInput.autocomplete = "off";
-  modalBody.appendChild(mkRow("searchFiles.exclusions", exclInput));
-
-  const patternInput = document.createElement("input");
-  patternInput.type = "text";
-  patternInput.placeholder = t("searchFiles.patternHint");
-  patternInput.style.flex = "1";
-  patternInput.autocomplete = "off";
-  modalBody.appendChild(mkRow("searchFiles.pattern", patternInput));
-
-  const modeRow = document.createElement("div");
-  modeRow.className = "row";
-  const globRadio = document.createElement("input");
-  globRadio.type = "radio";
-  globRadio.name = "fileMode";
-  globRadio.value = "glob";
-  globRadio.checked = true;
-  globRadio.id = "file-mode-glob";
-  const globLab = document.createElement("label");
-  globLab.htmlFor = "file-mode-glob";
-  globLab.textContent = t("searchFiles.glob");
-  globLab.style.marginRight = "12px";
-  const reRadio = document.createElement("input");
-  reRadio.type = "radio";
-  reRadio.name = "fileMode";
-  reRadio.value = "regexp";
-  reRadio.id = "file-mode-re";
-  const reLab = document.createElement("label");
-  reLab.htmlFor = "file-mode-re";
-  reLab.textContent = t("searchFiles.regexp");
-  modeRow.appendChild(globRadio);
-  modeRow.appendChild(globLab);
-  modeRow.appendChild(reRadio);
-  modeRow.appendChild(reLab);
-  modalBody.appendChild(modeRow);
-
-  const optsRow = document.createElement("div");
-  optsRow.className = "row";
-  const igCase = document.createElement("input");
-  igCase.type = "checkbox";
-  igCase.checked = true;
-  igCase.id = "search-igcase";
-  const igLab = document.createElement("label");
-  igLab.htmlFor = "search-igcase";
-  igLab.textContent = t("searchFiles.ignoreCase");
-  igLab.style.marginRight = "12px";
-  const rec = document.createElement("input");
-  rec.type = "checkbox";
-  rec.checked = true;
-  rec.id = "search-rec";
-  const recLab = document.createElement("label");
-  recLab.htmlFor = "search-rec";
-  recLab.textContent = t("searchFiles.recursive");
-  optsRow.appendChild(igCase);
-  optsRow.appendChild(igLab);
-  optsRow.appendChild(rec);
-  optsRow.appendChild(recLab);
-  modalBody.appendChild(optsRow);
-
-  const sep1 = document.createElement("hr");
-  modalBody.appendChild(sep1);
-
-  const contentEnable = document.createElement("input");
-  contentEnable.type = "checkbox";
-  contentEnable.id = "search-content-enable";
-  const contentEnableLab = document.createElement("label");
-  contentEnableLab.htmlFor = "search-content-enable";
-  contentEnableLab.textContent = t("searchFiles.contentEnable");
-  const contentEnableRow = document.createElement("div");
-  contentEnableRow.className = "row";
-  contentEnableRow.appendChild(contentEnable);
-  contentEnableRow.appendChild(contentEnableLab);
-  modalBody.appendChild(contentEnableRow);
-
-  const contentPanel = document.createElement("div");
-  contentPanel.style.opacity = "0.5";
-  contentPanel.style.pointerEvents = "none";
-  const contentInput = document.createElement("input");
-  contentInput.type = "text";
-  contentInput.style.flex = "1";
-  contentInput.autocomplete = "off";
-  const contentRow = mkRow("searchFiles.contentPattern", contentInput);
-  contentPanel.appendChild(contentRow);
-  const cModeRow = document.createElement("div");
-  cModeRow.className = "row";
-  const cTextRadio = document.createElement("input");
-  cTextRadio.type = "radio";
-  cTextRadio.name = "contentMode";
-  cTextRadio.value = "text";
-  cTextRadio.checked = true;
-  cTextRadio.id = "c-mode-text";
-  const cTextLab = document.createElement("label");
-  cTextLab.htmlFor = "c-mode-text";
-  cTextLab.textContent = t("searchFiles.contentText");
-  cTextLab.style.marginRight = "12px";
-  const cReRadio = document.createElement("input");
-  cReRadio.type = "radio";
-  cReRadio.name = "contentMode";
-  cReRadio.value = "regexp";
-  cReRadio.id = "c-mode-re";
-  const cReLab = document.createElement("label");
-  cReLab.htmlFor = "c-mode-re";
-  cReLab.textContent = t("searchFiles.contentRegexp");
-  cModeRow.appendChild(cTextRadio);
-  cModeRow.appendChild(cTextLab);
-  cModeRow.appendChild(cReRadio);
-  cModeRow.appendChild(cReLab);
-  contentPanel.appendChild(cModeRow);
-  const cOptsRow = document.createElement("div");
-  cOptsRow.className = "row";
-  const cIg = document.createElement("input");
-  cIg.type = "checkbox";
-  cIg.checked = true;
-  cIg.id = "search-c-igcase";
-  const cIgLab = document.createElement("label");
-  cIgLab.htmlFor = "search-c-igcase";
-  cIgLab.textContent = t("searchFiles.ignoreCase");
-  cOptsRow.appendChild(cIg);
-  cOptsRow.appendChild(cIgLab);
-  contentPanel.appendChild(cOptsRow);
-  modalBody.appendChild(contentPanel);
-
-  contentEnable.addEventListener("change", () => {
-    const en = contentEnable.checked;
-    contentPanel.style.opacity = en ? "1" : "0.5";
-    contentPanel.style.pointerEvents = en ? "auto" : "none";
-  });
-
-  const sep2 = document.createElement("hr");
-  modalBody.appendChild(sep2);
-
-  const resultsLabel = document.createElement("div");
-  resultsLabel.textContent = t("searchFiles.results");
-  resultsLabel.style.fontWeight = "bold";
-  modalBody.appendChild(resultsLabel);
-
-  const results = document.createElement("ul");
-  results.className = "fav-list search-results";
-  results.tabIndex = 0;
-  results.style.minWidth = "auto";
-  results.style.maxWidth = "none";
-  results.style.width = "100%";
-  results.style.minHeight = "120px";
-  results.style.maxHeight = "220px";
-  modalBody.appendChild(results);
-
-  const hint = document.createElement("div");
-  hint.className = "hint";
-  hint.textContent = "";
-  modalBody.appendChild(hint);
-
-  const cancelBtn = document.createElement("button");
-  cancelBtn.textContent = t("btn.cancel");
-  cancelBtn.addEventListener("mousedown", doClose);
-  modalActions.appendChild(cancelBtn);
-
-  const searchBtn = document.createElement("button");
-  searchBtn.textContent = t("searchFiles.search");
-  searchBtn.className = "primary";
-  modalActions.appendChild(searchBtn);
-
-  overlay.classList.add("open");
-  patternInput.focus();
-
-  const chooseResult = async (idx) => {
-    const path = results.children[idx]?.dataset?.path;
-    if (!path) return;
-    doClose();
-    const isDir = await invoke("path_info", { path }).then((i) => i.isDir).catch(() => false);
-    if (isDir) {
-      await loadDir(activeSide, path);
-    } else {
-      const slash = path.includes("\\") ? "\\" : "/";
-      const parent = path.substring(0, path.lastIndexOf(slash)) || "/";
-      const name = path.substring(path.lastIndexOf(slash) + 1);
-      await loadDir(activeSide, parent);
-      const rows = state[activeSide].rows || [];
-      const sel = rows.findIndex((r) => r.kind === "item" && r.entry.name === name);
-      if (sel >= 0) select(activeSide, sel);
-    }
-  };
-
-  results.addEventListener("keydown", (ev) => {
-    const items = results.querySelectorAll("li:not(.empty)");
-    if (items.length === 0) return;
-    let sel = Array.from(items).findIndex((li) => li.classList.contains("selected"));
-    if (ev.key === "ArrowDown") {
-      ev.preventDefault();
-      sel = Math.min(items.length - 1, sel + 1);
-      items.forEach((li, i) => li.classList.toggle("selected", i === sel));
-      items[sel].scrollIntoView({ block: "nearest" });
-    } else if (ev.key === "ArrowUp") {
-      ev.preventDefault();
-      sel = Math.max(0, sel - 1);
-      items.forEach((li, i) => li.classList.toggle("selected", i === sel));
-      items[sel].scrollIntoView({ block: "nearest" });
-    } else if (ev.key === "Enter") {
-      ev.preventDefault();
-      const idx = Array.from(results.children).findIndex((li) => li.classList.contains("selected"));
-      if (idx >= 0) chooseResult(idx);
-    }
-  });
-
-  results.addEventListener("dblclick", (ev) => {
-    const li = ev.target.closest("li");
-    if (!li || li.classList.contains("empty")) return;
-    const idx = Array.from(results.children).indexOf(li);
-    chooseResult(idx);
-  });
-  results.addEventListener("mousedown", (ev) => {
-    const li = ev.target.closest("li");
-    if (!li || li.classList.contains("empty")) return;
-    results.querySelectorAll("li").forEach((x) => x.classList.remove("selected"));
-    li.classList.add("selected");
-  });
-
-  async function doSearch() {
-    const params = {
-      basePath: baseInput.value.trim(),
-      exclusions: exclInput.value.trim(),
-      pattern: patternInput.value,
-      patternMode: document.querySelector('input[name="fileMode"]:checked')?.value || "glob",
-      ignoreCase: igCase.checked,
-      recursive: rec.checked,
-      contentEnabled: contentEnable.checked,
-      contentPattern: contentInput.value,
-      contentMode: document.querySelector('input[name="contentMode"]:checked')?.value || "text",
-      contentIgnoreCase: cIg.checked,
-    };
-    if (!params.basePath) {
-      hint.textContent = t("err.noSelection");
-      return;
-    }
-    searchBtn.disabled = true;
-    searchBtn.textContent = t("searchFiles.searching");
-    results.innerHTML = "";
-    hint.textContent = "";
-    try {
-      const found = await invoke("search_files", { params });
-      results.innerHTML = "";
-      if (found.length === 0) {
-        const li = document.createElement("li");
-        li.className = "empty";
-        li.textContent = t("searchFiles.noResults");
-        results.appendChild(li);
-        hint.textContent = "";
-      } else {
-        found.forEach((p, i) => {
-          const li = document.createElement("li");
-          li.textContent = p;
-          li.dataset.path = p;
-          if (i === 0) li.classList.add("selected");
-          li.addEventListener("mousedown", (ev) => {
-            ev.preventDefault();
-            results.querySelectorAll("li").forEach((x) => x.classList.remove("selected"));
-            li.classList.add("selected");
-          });
-          li.addEventListener("dblclick", () => chooseResult(i));
-          results.appendChild(li);
-        });
-        hint.textContent = t("searchFiles.resultsCount", { count: found.length });
-        results.focus();
-      }
-    } catch (err) {
-      hint.textContent = String(err);
-    } finally {
-      searchBtn.disabled = false;
-      searchBtn.textContent = t("searchFiles.search");
-    }
-  }
-
-  searchBtn.addEventListener("mousedown", doSearch);
-  patternInput.addEventListener("keydown", (ev) => {
-    if (ev.key === "Enter") { ev.preventDefault(); doSearch(); }
-  });
-
-}
-
-function settingsModal() {
-  const SIZES = [10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 28];
-  const body = document.createElement("div");
-
-  function mkH2(text) {
-    const h = document.createElement("h2");
-    h.textContent = text;
-    h.style.cssText = "font-size:var(--font-size,14px);color:var(--dir);margin:8px 0 4px";
-    return h;
-  }
-  function mkOpt(tag, attrs, text) {
-    const el = document.createElement(tag);
-    for (const [k, v] of Object.entries(attrs)) el[k] = v;
-    if (text) {
-      const sp = document.createElement("span");
-      sp.textContent = text;
-      const lbl = document.createElement("label");
-      lbl.className = "opt";
-      lbl.appendChild(el);
-      lbl.appendChild(sp);
-      return lbl;
-    }
-    return el;
-  }
-  function mkRow(labelText, input) {
-    const row = document.createElement("div");
-    row.className = "row";
-    const lbl = document.createElement("label");
-    lbl.textContent = labelText;
-    row.appendChild(lbl);
-    if (input) row.appendChild(input);
-    return row;
-  }
-  function mkHint(text) {
-    const d = document.createElement("div");
-    d.className = "hint";
-    d.textContent = text;
-    return d;
-  }
-  function quotePath(p) {
-    return /[\s"']/.test(p) ? `"${p.replace(/"/g, '\\"')}"` : p;
-  }
-
-  // Theme
-  body.appendChild(mkH2(t("settings.theme")));
-  const themes = [
-    ["system", t("theme.system")],
-    ["light", t("theme.light")],
-    ["dark", t("theme.dark")],
-  ];
-  const themeName = "settings-theme-" + Date.now();
-  themes.forEach(([val, label]) => {
-    body.appendChild(mkOpt("input", { type: "radio", name: themeName, value: val }, label));
-  });
-  const themeRadios = body.querySelectorAll(`input[name="${themeName}"]`);
-
-  // Font
-  body.appendChild(mkH2(t("settings.font")));
-  const fontSelect = document.createElement("select");
-  [["default", t("font.default")], ["monospace", t("font.monospace")], ["serif", t("font.serif")], ["sans", t("font.sans")]].forEach(([v, l]) => {
-    const o = document.createElement("option");
-    o.value = v; o.textContent = l;
-    fontSelect.appendChild(o);
-  });
-  body.appendChild(mkRow(t("settings.fontFamily"), fontSelect));
-
-  // Font size
-  body.appendChild(mkH2(t("settings.fontSize")));
-  const sizeSelect = document.createElement("select");
-  SIZES.forEach((s) => {
-    const o = document.createElement("option");
-    o.value = String(s);
-    o.textContent = t("sizePx", { size: s });
-    sizeSelect.appendChild(o);
-  });
-  body.appendChild(mkRow(t("settings.sizeLabel"), sizeSelect));
-
-  // Show hidden
-  body.appendChild(mkH2(t("settings.files")));
-  const showHiddenCb = mkOpt("input", { type: "checkbox", id: "set-show-hidden" }, t("settings.showHidden"));
-  body.appendChild(showHiddenCb);
-
-  // Diff
-  body.appendChild(mkH2(t("settings.diff")));
-  const diffInput = document.createElement("input");
-  diffInput.type = "text"; diffInput.placeholder = "nvim -d";
-  diffInput.autocomplete = "off"; diffInput.autocorrect = "off";
-  diffInput.autocapitalize = "off"; diffInput.spellcheck = false;
-  const diffRow = mkRow(t("settings.diffCommand"), diffInput);
-  const diffBrowse = document.createElement("button");
-  diffBrowse.type = "button"; diffBrowse.textContent = t("btn.browse");
-  diffBrowse.style.cssText = "flex:0 0 auto;margin-left:8px;padding:4px 10px;border:1px solid var(--modal-border);border-radius:3px;background:var(--modal-input-bg);color:var(--modal-input-text);cursor:pointer;font-family:inherit;font-size:var(--font-size,14px)";
-  diffRow.appendChild(diffBrowse);
-  body.appendChild(diffRow);
-  body.appendChild(mkHint(t("settings.diffHint")));
-  const diffTermCb = mkOpt("input", { type: "checkbox", id: "set-diff-terminal" }, t("settings.diffTerminal"));
-  body.appendChild(diffTermCb);
-
-  // Edit
-  body.appendChild(mkH2(t("settings.edit")));
-  const editInput = document.createElement("input");
-  editInput.type = "text"; editInput.placeholder = "code -w";
-  editInput.autocomplete = "off"; editInput.autocorrect = "off";
-  editInput.autocapitalize = "off"; editInput.spellcheck = false;
-  const editRow = mkRow(t("settings.editCommand"), editInput);
-  const editBrowse = document.createElement("button");
-  editBrowse.type = "button"; editBrowse.textContent = t("btn.browse");
-  editBrowse.style.cssText = diffBrowse.style.cssText;
-  editRow.appendChild(editBrowse);
-  body.appendChild(editRow);
-  body.appendChild(mkHint(t("settings.editHint")));
-  const editTermCb = mkOpt("input", { type: "checkbox", id: "set-edit-terminal" }, t("settings.editTerminal"));
-  body.appendChild(editTermCb);
-
-  showModal(t("settings.title"), "append", body, true);
-
-  // Load current values
-  invoke("get_appearance").then((a) => {
-    if (!a) return;
-    const r = body.querySelector(`input[name="${themeName}"][value="${a.theme}"]`);
-    if (r) r.checked = true;
-    fontSelect.value = a.font;
-    sizeSelect.value = String(a.fontSize);
-    diffInput.value = a.diffCommand || "";
-    diffTermCb.querySelector("input").checked = !!a.diffInTerminal;
-    editInput.value = a.editCommand || "";
-    editTermCb.querySelector("input").checked = !!a.editInTerminal;
-    showHiddenCb.querySelector("input").checked = a.showHidden !== false;
-  }).catch(() => {});
-
-  // Bind controls
-  themeRadios.forEach((radio) => {
-    radio.addEventListener("change", async () => {
-      if (!radio.checked) return;
-      try { await invoke("set_theme", { theme: radio.value }); } catch {}
-    });
-  });
-  fontSelect.addEventListener("change", async () => {
-    try { await invoke("set_font", { font: fontSelect.value }); } catch {}
-  });
-  sizeSelect.addEventListener("change", async () => {
-    try { await invoke("set_font_size", { fontSize: Number(sizeSelect.value) }); } catch {}
-  });
-  showHiddenCb.querySelector("input").addEventListener("change", async (ev) => {
-    try { await invoke("set_show_hidden", { showHidden: ev.target.checked }); } catch {}
-  });
-
-  let diffDebounce = null;
-  diffInput.addEventListener("input", () => {
-    clearTimeout(diffDebounce);
-    diffDebounce = setTimeout(async () => {
-      try { await invoke("set_diff_command", { command: diffInput.value }); } catch {}
-    }, 400);
-  });
-  diffTermCb.querySelector("input").addEventListener("change", async (ev) => {
-    try { await invoke("set_diff_in_terminal", { inTerminal: ev.target.checked }); } catch {}
-  });
-  diffBrowse.addEventListener("mousedown", async () => {
-    try {
-      const picked = await openDialog({ multiple: false, title: t("dialog.pickApp") });
-      if (!picked) return;
-      const path = Array.isArray(picked) ? picked[0] : picked;
-      const quoted = quotePath(path);
-      if (diffInput.value.trim() === "" || diffInput.value.includes("%1") || diffInput.value.includes("%2")) {
-        diffInput.value = `${quoted} %1 %2`.trim();
-      } else {
-        diffInput.value = quoted;
-      }
-      diffInput.dispatchEvent(new Event("input"));
-    } catch {}
-  });
-
-  let editDebounce = null;
-  editInput.addEventListener("input", () => {
-    clearTimeout(editDebounce);
-    editDebounce = setTimeout(async () => {
-      try { await invoke("set_edit_command", { command: editInput.value }); } catch {}
-    }, 400);
-  });
-  editTermCb.querySelector("input").addEventListener("change", async (ev) => {
-    try { await invoke("set_edit_in_terminal", { inTerminal: ev.target.checked }); } catch {}
-  });
-  editBrowse.addEventListener("mousedown", async () => {
-    try {
-      const picked = await openDialog({ multiple: false, title: t("dialog.pickApp") });
-      if (!picked) return;
-      const path = Array.isArray(picked) ? picked[0] : picked;
-      const quoted = quotePath(path);
-      if (editInput.value.trim() === "" || editInput.value.includes("%1")) {
-        editInput.value = `${quoted} %1`.trim();
-      } else {
-        editInput.value = quoted;
-      }
-      editInput.dispatchEvent(new Event("input"));
-    } catch {}
-  });
-}
-
 function quitApp() {
   invoke("quit_app").catch(() => {});
 }
@@ -1724,7 +1144,6 @@ function closeModal() {
   overlay.classList.remove("open");
   modalBody.innerHTML = "";
   modalActions.innerHTML = "";
-  modalEl.classList.remove("search-modal");
   modalEl.classList.remove("maximized");
   viewState = null;
   if (modalDismissCb) { const cb = modalDismissCb; modalDismissCb = null; cb(); }
@@ -2412,8 +1831,60 @@ document.querySelector("#btn-fav-apps").addEventListener("mousedown", () => {
     );
   });
 });
-document.querySelector("#btn-search").addEventListener("mousedown", () => fileSearchDialog());
-document.querySelector("#btn-settings").addEventListener("mousedown", () => settingsModal());
+
+async function navigateFromSearch(path) {
+  if (!path) return;
+  const isDir = await invoke("path_info", { path }).then((i) => i.isDir).catch(() => false);
+  if (isDir) {
+    await loadDir(activeSide, path);
+  } else {
+    const slash = path.includes("\\") ? "\\" : "/";
+    const parent = path.substring(0, path.lastIndexOf(slash)) || "/";
+    const name = path.substring(path.lastIndexOf(slash) + 1);
+    await loadDir(activeSide, parent);
+    const rows = state[activeSide].rows || [];
+    const sel = rows.findIndex((r) => r.kind === "item" && r.entry.name === name);
+    if (sel >= 0) select(activeSide, sel);
+  }
+}
+
+function sendSearchOpen() {
+  emit("search-open", { basePath: state[activeSide].path || "" }).catch(() => {});
+}
+
+async function openSearchWindow() {
+  try {
+    await invoke("open_search");
+  } catch (err) {
+    alertModal(t("err.title"), String(err));
+    return;
+  }
+  sendSearchOpen();
+}
+
+getCurrentWindow().listen("search-window-ready", sendSearchOpen).catch(() => {});
+getCurrentWindow()
+  .listen("search-navigate", ({ payload }) => navigateFromSearch(payload && payload.path))
+  .catch(() => {});
+
+async function openSettingsWindow() {
+  try {
+    await invoke("open_settings");
+  } catch (err) {
+    alertModal(t("err.title"), String(err));
+  }
+}
+
+async function openHelpWindow() {
+  try {
+    await invoke("open_help");
+  } catch (err) {
+    alertModal(t("err.title"), String(err));
+  }
+}
+
+document.querySelector("#btn-search").addEventListener("mousedown", openSearchWindow);
+document.querySelector("#btn-settings").addEventListener("mousedown", openSettingsWindow);
 document.querySelector("#btn-quit").addEventListener("mousedown", quitApp);
 document.querySelector("#btn-back").addEventListener("mousedown", () => goUp(activeSide));
 
@@ -2608,7 +2079,7 @@ document.addEventListener("keydown", (ev) => {
 
 function handleFKey(key) {
   const map = {
-    F1: helpModal,
+    F1: openHelpWindow,
     F2: diffSelected,
     F3: viewFile,
     F4: editFile,
@@ -2683,7 +2154,7 @@ async function init() {
     .onThemeChanged(({ payload }) => {
       if (themePref === "system") {
         currentOsTheme = payload;
-        applyTheme();
+        applyThemePref(themePref, currentOsTheme);
       }
     })
     .catch(() => {});

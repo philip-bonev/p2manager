@@ -20,7 +20,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::UNIX_EPOCH;
-use tauri::{Emitter, Manager};
+use tauri::webview::WebviewWindowBuilder;
+use tauri::{Emitter, Manager, PhysicalPosition, WebviewUrl};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1357,6 +1358,99 @@ fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
 
+struct ChildWindowSpec {
+    label: &'static str,
+    url: &'static str,
+    title: &'static str,
+    width: f64,
+    height: f64,
+    min_width: f64,
+    min_height: f64,
+}
+
+fn open_child_window(app: &tauri::AppHandle, spec: &ChildWindowSpec) -> Result<(), String> {
+    if let Some(existing) = app.get_webview_window(spec.label) {
+        let _ = existing.unminimize();
+        let _ = existing.set_focus();
+        return Ok(());
+    }
+    let main = app
+        .get_webview_window("main")
+        .ok_or_else(|| "Main window not found.".to_string())?;
+    let scale = main.scale_factor().unwrap_or(1.0);
+    let pos = main.outer_position().map_err(|e| e.to_string())?;
+    let size = main.outer_size().map_err(|e| e.to_string())?;
+    let child_w = (spec.width * scale).round() as u32;
+    let child_h = (spec.height * scale).round() as u32;
+    let mut x = pos.x + (size.width as i32 - child_w as i32) / 2;
+    let mut y = pos.y + (size.height as i32 - child_h as i32) / 2;
+    if let Ok(Some(monitor)) = main.current_monitor() {
+        let mp = monitor.position();
+        let ms = monitor.size();
+        let max_x = mp.x + ms.width as i32 - child_w as i32;
+        let max_y = mp.y + ms.height as i32 - child_h as i32;
+        x = x.clamp(mp.x, max_x.max(mp.x));
+        y = y.clamp(mp.y, max_y.max(mp.y));
+    }
+    let window = WebviewWindowBuilder::new(app, spec.label, WebviewUrl::App(spec.url.into()))
+        .title(spec.title)
+        .inner_size(spec.width, spec.height)
+        .min_inner_size(spec.min_width, spec.min_height)
+        .build()
+        .map_err(|e| e.to_string())?;
+    let _ = window.set_position(PhysicalPosition::new(x, y));
+    let _ = window.set_focus();
+    Ok(())
+}
+
+#[tauri::command]
+fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
+    open_child_window(
+        &app,
+        &ChildWindowSpec {
+            label: "settings",
+            url: "settings.html",
+            title: "Settings",
+            width: 560.0,
+            height: 680.0,
+            min_width: 460.0,
+            min_height: 520.0,
+        },
+    )
+}
+
+#[tauri::command]
+fn open_help(app: tauri::AppHandle) -> Result<(), String> {
+    open_child_window(
+        &app,
+        &ChildWindowSpec {
+            label: "help",
+            url: "help.html",
+            title: "Help",
+            width: 840.0,
+            height: 620.0,
+            min_width: 560.0,
+            min_height: 420.0,
+        },
+    )
+}
+
+#[tauri::command]
+fn open_search(app: tauri::AppHandle) -> Result<(), String> {
+    open_child_window(
+        &app,
+        &ChildWindowSpec {
+            label: "search",
+            url: "search.html",
+            title: "Search files",
+            width: 760.0,
+            height: 660.0,
+            min_width: 640.0,
+            min_height: 560.0,
+        },
+    )
+}
+
 #[tauri::command]
 fn get_appearance() -> Result<AppSettings, String> {
     Ok(load_settings())
@@ -1773,16 +1867,30 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if window.label() != "main" {
-                return;
-            }
-            let state = window.app_handle().state::<AppState>();
-            let mut geo = state.geometry.lock().unwrap();
+            let is_main = window.label() == "main";
             match event {
-                tauri::WindowEvent::Resized(size) => {
+                tauri::WindowEvent::CloseRequested { .. } => {
+                    if is_main {
+                        // Closing the main window closes the whole app:
+                        // close every secondary window as well.
+                        let handle = window.app_handle().clone();
+                        for (label, w) in handle.webview_windows() {
+                            if label != "main" {
+                                let _ = w.close();
+                            }
+                        }
+                    }
+                    // Secondary windows: close only themselves; the app keeps
+                    // running while "main" is open.
+                }
+                tauri::WindowEvent::Resized(size) if is_main => {
+                    let state = window.app_handle().state::<AppState>();
+                    let mut geo = state.geometry.lock().unwrap();
                     geo.size = Some((size.width, size.height));
                 }
-                tauri::WindowEvent::Moved(position) => {
+                tauri::WindowEvent::Moved(position) if is_main => {
+                    let state = window.app_handle().state::<AppState>();
+                    let mut geo = state.geometry.lock().unwrap();
                     geo.position = Some((position.x, position.y));
                 }
                 _ => {}
@@ -1814,6 +1922,9 @@ pub fn run() {
             run_edit,
             run_command,
             quit_app,
+            open_settings,
+            open_help,
+            open_search,
             get_appearance,
             set_theme,
             set_font,
@@ -1834,21 +1945,25 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app: &tauri::AppHandle, event: tauri::RunEvent| {
-            if let tauri::RunEvent::ExitRequested { .. } = event {
-                if let Some(_window) = app.get_webview_window("main") {
-                    let state = app.state::<AppState>();
-                    let geo = state.geometry.lock().unwrap();
-                    let mut settings = load_settings();
-                    if let Some((w, h)) = geo.size {
-                        settings.width = Some(w);
-                        settings.height = Some(h);
-                    }
-                    if let Some((x, y)) = geo.position {
-                        settings.x = Some(x);
-                        settings.y = Some(y);
-                    }
-                    let _ = save_settings(&settings);
+            if let tauri::RunEvent::ExitRequested { code, api, .. } = event {
+                // code is None when the exit is triggered by closing a window.
+                // If main is still open, a secondary window closed — keep the app running.
+                if code.is_none() && app.get_webview_window("main").is_some() {
+                    api.prevent_exit();
+                    return;
                 }
+                let state = app.state::<AppState>();
+                let geo = state.geometry.lock().unwrap();
+                let mut settings = load_settings();
+                if let Some((w, h)) = geo.size {
+                    settings.width = Some(w);
+                    settings.height = Some(h);
+                }
+                if let Some((x, y)) = geo.position {
+                    settings.x = Some(x);
+                    settings.y = Some(y);
+                }
+                let _ = save_settings(&settings);
             }
         });
 }
