@@ -443,21 +443,6 @@
   padding: 0;
 }
 
-.modal-body table.info {
-  border-collapse: collapse;
-  width: 100%;
-}
-
-.modal-body table.info td {
-  padding: 3px 8px;
-  vertical-align: top;
-}
-
-.modal-body table.info td:first-child {
-  color: var(--dir);
-  width: 120px;
-}
-
 .modal-body .menu-item {
   display: block;
   width: 100%;

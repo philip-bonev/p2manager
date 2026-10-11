@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main, settings, help and search windows",
-  "windows": ["main", "settings", "help", "search"],
+  "description": "Capability for the main, settings, help, search, view and info windows",
+  "windows": ["main", "settings", "help", "search", "view", "info"],
   "permissions": [
     "core:default",
     "opener:default",

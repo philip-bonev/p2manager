@@ -1,0 +1,22 @@
+.info-body {
+  overflow: auto;
+}
+
+table.info {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+table.info td {
+  padding: 3px 8px;
+  vertical-align: top;
+}
+
+table.info td:first-child {
+  color: var(--dir);
+  width: 120px;
+}
+
+table.info td:last-child {
+  overflow-wrap: anywhere;
+}

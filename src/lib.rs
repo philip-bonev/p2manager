@@ -1468,6 +1468,38 @@ fn open_search(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn open_view(app: tauri::AppHandle) -> Result<(), String> {
+    open_child_window(
+        &app,
+        &ChildWindowSpec {
+            label: "view",
+            url: "view.html",
+            title: "View",
+            width: 900.0,
+            height: 700.0,
+            min_width: 560.0,
+            min_height: 400.0,
+        },
+    )
+}
+
+#[tauri::command]
+fn open_info(app: tauri::AppHandle) -> Result<(), String> {
+    open_child_window(
+        &app,
+        &ChildWindowSpec {
+            label: "info",
+            url: "info.html",
+            title: "Info",
+            width: 520.0,
+            height: 460.0,
+            min_width: 420.0,
+            min_height: 320.0,
+        },
+    )
+}
+
+#[tauri::command]
 fn get_appearance() -> Result<AppSettings, String> {
     Ok(load_settings())
 }
@@ -1941,6 +1973,8 @@ pub fn run() {
             open_settings,
             open_help,
             open_search,
+            open_view,
+            open_info,
             get_appearance,
             set_theme,
             set_font,

@@ -896,54 +896,21 @@ async function renameSelected() {
   }
 }
 
-const VIEW_CHUNK = 256 * 1024;
-const VIEW_BUFFER = 64 * 1024;
-let viewState = null;
+let pendingViewPath = null;
+let pendingInfoPath = null;
 
 async function viewFile() {
   const side = activeSide;
   const row = selectedRow(side);
   if (!row || row.kind === "parent") return;
-  const src = selectedPath(side);
+  pendingViewPath = selectedPath(side);
   try {
-    const info = await invoke("path_info", { path: src }).catch(() => null);
-    const fileSize = info ? info.size : 0;
-    const firstChunk = await invoke("read_file_chunk", { path: src, offset: 0, limit: VIEW_CHUNK });
-    viewState = { path: src, fileSize, loaded: firstChunk.length, text: firstChunk };
-    showModal(t("view.title", { name: row.entry.name }), "pre", firstChunk, true);
-    modalEl.classList.add("maximized");
-    const pre = modalBody.querySelector("pre");
-    if (pre) {
-      pre.tabIndex = 0;
-      pre.style.outline = "none";
-      pre.style.whiteSpace = "pre";
-      pre.style.overflow = "auto";
-      pre.addEventListener("scroll", onViewScroll);
-      pre.focus();
-    }
+    await invoke("open_view");
   } catch (err) {
     alertModal(t("err.title"), String(err));
+    return;
   }
-}
-
-async function onViewScroll(ev) {
-  if (!viewState) return;
-  const pre = ev.target;
-  const nearBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 200;
-  if (nearBottom && viewState.loaded < viewState.fileSize) {
-    const chunk = await invoke("read_file_chunk", {
-      path: viewState.path,
-      offset: viewState.loaded,
-      limit: VIEW_CHUNK,
-    });
-    if (chunk.length > 0) {
-      viewState.text += chunk;
-      viewState.loaded += chunk.length;
-      const pos = pre.scrollTop;
-      pre.textContent = viewState.text;
-      pre.scrollTop = pos;
-    }
-  }
+  emit("view-open", { path: pendingViewPath }).catch(() => {});
 }
 
 async function editFile() {
@@ -968,25 +935,14 @@ async function fileInfo() {
   const side = activeSide;
   const row = selectedRow(side);
   if (!row || row.kind === "parent") return;
-  const src = selectedPath(side);
+  pendingInfoPath = selectedPath(side);
   try {
-    const info = await invoke("path_info", { path: src });
-    const rows = [
-      [t("info.name"), info.name],
-      [t("info.path"), info.path],
-      [t("info.type"), info.isDir ? t("info.typeDir") : t("info.typeFile")],
-      [t("info.size"), info.isDir ? "—" : fmtSize(info.size)],
-      [t("info.modified"), fmtDate(info.modified)],
-      [t("info.created"), fmtDate(info.created)],
-      [t("info.permissions"), info.permissions],
-    ];
-    let html = `<table class="info">`;
-    for (const [k, v] of rows) html += `<tr><td>${k}</td><td>${v}</td></tr>`;
-    html += `</table>`;
-    showModal(t("info.title"), "html", html, true);
+    await invoke("open_info");
   } catch (err) {
     alertModal(t("err.title"), String(err));
+    return;
   }
+  emit("info-open", { path: pendingInfoPath }).catch(() => {});
 }
 
 function esc(str) {
@@ -1144,7 +1100,6 @@ function closeModal() {
   modalBody.innerHTML = "";
   modalActions.innerHTML = "";
   modalEl.classList.remove("maximized");
-  viewState = null;
   if (modalDismissCb) { const cb = modalDismissCb; modalDismissCb = null; cb(); }
   if (lastFocused && document.contains(lastFocused)) {
     lastFocused.focus();
@@ -1864,6 +1819,17 @@ async function openSearchWindow() {
 getCurrentWindow().listen("search-window-ready", sendSearchOpen).catch(() => {});
 getCurrentWindow()
   .listen("search-navigate", ({ payload }) => navigateFromSearch(payload && payload.path))
+  .catch(() => {});
+
+getCurrentWindow()
+  .listen("view-window-ready", () => {
+    if (pendingViewPath) emit("view-open", { path: pendingViewPath }).catch(() => {});
+  })
+  .catch(() => {});
+getCurrentWindow()
+  .listen("info-window-ready", () => {
+    if (pendingInfoPath) emit("info-open", { path: pendingInfoPath }).catch(() => {});
+  })
   .catch(() => {});
 
 async function openSettingsWindow() {

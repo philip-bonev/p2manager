@@ -1,0 +1,21 @@
+.view-body {
+  padding: 0;
+  overflow: hidden;
+}
+
+.view-pre {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  white-space: pre;
+  overflow: auto;
+  outline: none;
+}
+
+.view-body .hint {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+}

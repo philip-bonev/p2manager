@@ -1,0 +1,39 @@
+<!--
+  Copyright 2026 Philip Bonev
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://apache.org
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
+<!doctype html>
+<html lang="bg">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="common.css" />
+    <link rel="stylesheet" href="view.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Преглед</title>
+    <script type="module" src="/view.js" defer></script>
+  </head>
+
+  <body>
+    <header class="win-header">
+      <span class="win-title" id="v-title" data-i18n="view.window">Преглед</span>
+      <button class="win-close" id="btn-close" data-i18n-title="btn.close"><svg class="tb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span data-i18n="btn.close">Затвори</span></button>
+    </header>
+
+    <main class="win-body view-body">
+      <pre id="v-pre" class="view-pre" tabindex="0"></pre>
+      <div class="hint" id="v-hint"></div>
+    </main>
+  </body>
+</html>
