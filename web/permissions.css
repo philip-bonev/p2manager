@@ -1,0 +1,37 @@
+.permissions-body {
+  gap: 12px;
+}
+
+.permission-path {
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.permission-grid {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.permission-grid th,
+.permission-grid td {
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.permission-grid th:first-child {
+  text-align: left;
+}
+
+.permission-grid tbody th {
+  color: var(--dir);
+}
+
+.permission-grid input[type="checkbox"] {
+  margin: 0;
+}
+
+.permissions-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+}

@@ -144,7 +144,7 @@ Note: the frontend directory must stay at `web/` — it is referenced as
 | F3 / F4 | View text file / edit in default editor |
 | F5 / F6 | Copy / move to the other panel |
 | F7 / F8 / F11 | New folder / delete / rename |
-| F9 / F10 | Change folder / quit |
+| F9 / F10 | Change folder / edit file permissions |
 | F12 | Info about the selected item |
 
 Settings, Help (F1) and the file search window open from the toolbar as

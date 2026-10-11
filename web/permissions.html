@@ -1,0 +1,61 @@
+<!--
+  Copyright 2026 Philip Bonev
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+      http://apache.org
+-->
+<!doctype html>
+<html lang="bg">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="common.css" />
+    <link rel="stylesheet" href="permissions.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Права на достъп</title>
+    <script type="module" src="/permissions.js" defer></script>
+  </head>
+  <body>
+    <header class="win-header">
+      <span class="win-title" id="p-title" data-i18n="permissions.title">Права на достъп</span>
+      <button class="win-close" id="btn-close" data-i18n-title="btn.close"><svg class="tb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg><span data-i18n="btn.close">Затвори</span></button>
+    </header>
+    <main class="win-body permissions-body">
+      <div class="permission-path" id="p-path"></div>
+      <table class="permission-grid">
+        <thead>
+          <tr>
+            <th></th>
+            <th id="col-read" data-i18n="permissions.read">Четене</th>
+            <th id="col-write" data-i18n="permissions.write">Запис</th>
+            <th id="col-execute" data-i18n="permissions.execute">Изпълнение</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th id="row-owner" scope="row" data-i18n="permissions.owner">Собственик</th>
+            <td><input type="checkbox" data-bit="256" aria-labelledby="row-owner col-read" /></td>
+            <td><input type="checkbox" data-bit="128" aria-labelledby="row-owner col-write" /></td>
+            <td><input type="checkbox" data-bit="64" aria-labelledby="row-owner col-execute" /></td>
+          </tr>
+          <tr>
+            <th id="row-group" scope="row" data-i18n="permissions.group">Група</th>
+            <td><input type="checkbox" data-bit="32" aria-labelledby="row-group col-read" /></td>
+            <td><input type="checkbox" data-bit="16" aria-labelledby="row-group col-write" /></td>
+            <td><input type="checkbox" data-bit="8" aria-labelledby="row-group col-execute" /></td>
+          </tr>
+          <tr>
+            <th id="row-others" scope="row" data-i18n="permissions.others">Всички</th>
+            <td><input type="checkbox" data-bit="4" aria-labelledby="row-others col-read" /></td>
+            <td><input type="checkbox" data-bit="2" aria-labelledby="row-others col-write" /></td>
+            <td><input type="checkbox" data-bit="1" aria-labelledby="row-others col-execute" /></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="hint" id="p-hint" role="status"></div>
+      <div class="permissions-actions">
+        <button type="button" id="p-apply" class="primary" data-i18n="permissions.apply">Приложи</button>
+      </div>
+    </main>
+  </body>
+</html>

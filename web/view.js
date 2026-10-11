@@ -29,6 +29,11 @@ initAppearance().catch(() => {});
 const titleEl = document.querySelector("#v-title");
 const pre = document.querySelector("#v-pre");
 const hint = document.querySelector("#v-hint");
+const wrapCheckbox = document.querySelector("#v-wrap");
+
+wrapCheckbox.addEventListener("change", () => {
+  pre.classList.toggle("word-wrap", wrapCheckbox.checked);
+});
 
 document.querySelector("#btn-close").addEventListener("mousedown", () => {
   win.close().catch(() => {});

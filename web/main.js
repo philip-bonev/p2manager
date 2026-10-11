@@ -898,6 +898,7 @@ async function renameSelected() {
 
 let pendingViewPath = null;
 let pendingInfoPath = null;
+let pendingPermissionsPath = null;
 
 async function viewFile() {
   const side = activeSide;
@@ -943,6 +944,23 @@ async function fileInfo() {
     return;
   }
   emit("info-open", { path: pendingInfoPath }).catch(() => {});
+}
+
+async function openPermissionsWindow() {
+  const side = activeSide;
+  const row = selectedRow(side);
+  if (!row || row.kind === "parent") {
+    alertModal(t("err.title"), t("err.noSelection"));
+    return;
+  }
+  pendingPermissionsPath = selectedPath(side);
+  try {
+    await invoke("open_permissions");
+  } catch (err) {
+    alertModal(t("err.title"), String(err));
+    return;
+  }
+  emit("permissions-open", { path: pendingPermissionsPath }).catch(() => {});
 }
 
 function esc(str) {
@@ -1831,6 +1849,13 @@ getCurrentWindow()
     if (pendingInfoPath) emit("info-open", { path: pendingInfoPath }).catch(() => {});
   })
   .catch(() => {});
+getCurrentWindow()
+  .listen("permissions-window-ready", () => {
+    if (pendingPermissionsPath) {
+      emit("permissions-open", { path: pendingPermissionsPath }).catch(() => {});
+    }
+  })
+  .catch(() => {});
 
 async function openSettingsWindow() {
   try {
@@ -2053,7 +2078,7 @@ function handleFKey(key) {
     F7: newFolder,
     F8: deleteSelected,
     F9: changeFolderModal,
-    F10: quitApp,
+    F10: openPermissionsWindow,
     F11: renameSelected,
     F12: fileInfo,
   };

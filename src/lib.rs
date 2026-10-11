@@ -1194,6 +1194,65 @@ fn path_info(path: String) -> Result<FileInfo, String> {
     })
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PermissionSnapshot {
+    supported: bool,
+    mode: u32,
+}
+
+#[tauri::command]
+async fn get_file_permissions(path: String) -> Result<PermissionSnapshot, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let metadata = fs::metadata(&path)
+                .map_err(|e| format!("Error reading permissions for {}: {}", path, e))?;
+            Ok(PermissionSnapshot {
+                supported: true,
+                mode: metadata.permissions().mode() & 0o777,
+            })
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = path;
+            Ok(PermissionSnapshot {
+                supported: false,
+                mode: 0,
+            })
+        }
+    })
+    .await
+    .map_err(|e| format!("Error reading permissions: {}", e))?
+}
+
+#[tauri::command]
+async fn set_file_permissions(path: String, mode: u32) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if mode > 0o777 {
+                return Err("Invalid permissions mode.".to_string());
+            }
+            let metadata = fs::metadata(&path)
+                .map_err(|e| format!("Error reading permissions for {}: {}", path, e))?;
+            let current = metadata.permissions().mode();
+            let updated = (current & !0o777) | mode;
+            fs::set_permissions(&path, fs::Permissions::from_mode(updated))
+                .map_err(|e| format!("Error setting permissions for {}: {}", path, e))
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = (path, mode);
+            Err("POSIX permissions are not supported on this platform.".to_string())
+        }
+    })
+    .await
+    .map_err(|e| format!("Error setting permissions: {}", e))?
+}
+
 #[cfg(unix)]
 fn is_executable(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
@@ -1495,6 +1554,22 @@ fn open_info(app: tauri::AppHandle) -> Result<(), String> {
             height: 460.0,
             min_width: 420.0,
             min_height: 320.0,
+        },
+    )
+}
+
+#[tauri::command]
+fn open_permissions(app: tauri::AppHandle) -> Result<(), String> {
+    open_child_window(
+        &app,
+        &ChildWindowSpec {
+            label: "permissions",
+            url: "permissions.html",
+            title: "Permissions",
+            width: 520.0,
+            height: 440.0,
+            min_width: 440.0,
+            min_height: 360.0,
         },
     )
 }
@@ -1975,6 +2050,9 @@ pub fn run() {
             open_search,
             open_view,
             open_info,
+            open_permissions,
+            get_file_permissions,
+            set_file_permissions,
             get_appearance,
             set_theme,
             set_font,

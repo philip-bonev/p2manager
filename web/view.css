@@ -1,3 +1,16 @@
+.view-wrap-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.view-wrap-opt input {
+  margin: 0;
+}
+
 .view-body {
   padding: 0;
   overflow: hidden;
@@ -13,6 +26,11 @@
   white-space: pre;
   overflow: auto;
   outline: none;
+}
+
+.view-pre.word-wrap {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .view-body .hint {
