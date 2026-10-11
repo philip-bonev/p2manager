@@ -18,10 +18,17 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::UNIX_EPOCH;
+use syntect::easy::HighlightLines;
+use syntect::highlighting::ThemeSet;
+use syntect::html::{IncludeBackground, styled_line_to_highlighted_html};
+use syntect::parsing::SyntaxSet;
 use tauri::webview::WebviewWindowBuilder;
 use tauri::{Emitter, Manager, PhysicalPosition, WebviewUrl};
+
+static SYNTAXES: OnceLock<SyntaxSet> = OnceLock::new();
+static SYNTAX_THEMES: OnceLock<ThemeSet> = OnceLock::new();
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1200,6 +1207,69 @@ async fn authorize_view_image(
 }
 
 #[tauri::command]
+async fn highlight_code_text(
+    text: String,
+    extension: String,
+    dark: bool,
+    window: tauri::WebviewWindow,
+) -> Result<Option<Vec<String>>, String> {
+    if window.label() != "view" {
+        return Err("Syntax highlighting is only available in the file viewer.".to_string());
+    }
+    if text.len() > 2 * 1024 * 1024 {
+        return Err("Syntax highlighting is limited to 2 MiB.".to_string());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let syntaxes = SYNTAXES.get_or_init(two_face::syntax::extra_newlines);
+        let themes = SYNTAX_THEMES.get_or_init(ThemeSet::load_defaults);
+        let extension = extension.trim_start_matches('.');
+        let syntax = syntaxes.find_syntax_by_extension(extension).or_else(|| {
+            text.lines()
+                .next()
+                .and_then(|line| syntaxes.find_syntax_by_first_line(line))
+        });
+        let Some(syntax) = syntax else {
+            return Ok(None);
+        };
+        if syntax.name == "Plain Text" {
+            return Ok(None);
+        }
+        let theme_name = if dark {
+            "base16-ocean.dark"
+        } else {
+            "InspiredGitHub"
+        };
+        let theme = themes
+            .themes
+            .get(theme_name)
+            .ok_or_else(|| format!("Syntax theme {} is unavailable.", theme_name))?;
+        let mut highlighter = HighlightLines::new(syntax, theme);
+        let mut result = Vec::new();
+        for line in text.split_inclusive('\n') {
+            let line_with_newline;
+            let line = if line.ends_with('\n') {
+                line
+            } else {
+                line_with_newline = format!("{}\n", line);
+                &line_with_newline
+            };
+            let regions = highlighter
+                .highlight_line(line, syntaxes)
+                .map_err(|e| format!("Syntax highlighting failed: {}", e))?;
+            let html = styled_line_to_highlighted_html(&regions, IncludeBackground::No)
+                .map_err(|e| format!("Could not render highlighted code: {}", e))?;
+            result.push(html);
+        }
+        if text.is_empty() || text.ends_with('\n') {
+            result.push(String::new());
+        }
+        Ok(Some(result))
+    })
+    .await
+    .map_err(|e| format!("Syntax highlighting failed: {}", e))?
+}
+
+#[tauri::command]
 fn path_info(path: String) -> Result<FileInfo, String> {
     let p = PathBuf::from(&path);
     let meta = fs::metadata(&p).map_err(|e| format!("Error reading {}: {}", path, e))?;
@@ -2136,6 +2206,7 @@ pub fn run() {
             read_text_file,
             read_file_chunk,
             authorize_view_image,
+            highlight_code_text,
             path_info,
             open_path,
             edit_path,
@@ -2192,4 +2263,18 @@ pub fn run() {
                 let _ = save_settings(&settings);
             }
         });
+}
+
+#[cfg(test)]
+mod syntax_highlighting_tests {
+    #[test]
+    fn bundled_syntaxes_cover_requested_file_formats() {
+        let syntaxes = two_face::syntax::extra_newlines();
+        for extension in ["js", "html", "css", "json", "yaml", "md", "rs", "toml"] {
+            assert!(
+                syntaxes.find_syntax_by_extension(extension).is_some(),
+                "missing Syntect syntax for .{extension}"
+            );
+        }
+    }
 }

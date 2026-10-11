@@ -59,6 +59,10 @@
   overflow-wrap: anywhere;
 }
 
+.view-line {
+  white-space: inherit;
+}
+
 .view-pre .wrap-marker {
   color: var(--dir);
   font-size: 0.85em;

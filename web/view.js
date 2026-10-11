@@ -35,7 +35,10 @@ const image = document.querySelector("#v-image");
 const measureCanvas = document.createElement("canvas");
 const measureContext = measureCanvas.getContext("2d");
 
-initAppearance(() => renderViewerText()).catch(() => {});
+initAppearance(() => {
+  if (viewState && viewState.syntaxExtension !== null) highlightCodeText(viewState);
+  else renderViewerText();
+}).catch(() => {});
 
 wrapCheckbox.addEventListener("change", () => {
   pre.classList.toggle("word-wrap", wrapCheckbox.checked);
@@ -51,29 +54,41 @@ let viewState = null;
 let loading = false;
 let loadId = 0;
 
+function currentSyntaxTheme() {
+  return document.documentElement.classList.contains("theme-dark") ? "dark" : "light";
+}
+
 function renderViewerText() {
   if (!viewState) return;
+  const state = viewState;
   const scrollTop = pre.scrollTop;
-  if (!wrapCheckbox.checked) {
-    pre.textContent = viewState.text;
-    pre.scrollTop = scrollTop;
-    return;
-  }
-
   const style = getComputedStyle(pre);
   if (measureContext) measureContext.font = style.font;
   const availableWidth = Math.max(
     1,
     pre.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
   );
-  const lines = viewState.text.split("\n");
+  const lines = state.text.split("\n");
+  const hasHighlight =
+    Array.isArray(state.highlightedLines) &&
+    state.highlightedText === state.text && state.highlightedTheme === currentSyntaxTheme();
   const fragment = document.createDocumentFragment();
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].endsWith("\r") ? lines[i].slice(0, -1) : lines[i];
-    const text = document.createTextNode(line);
-    fragment.appendChild(text);
+    const lineElement = document.createElement("span");
+    lineElement.className = "view-line";
+    if (hasHighlight && state.highlightedLines[i] !== undefined) {
+      lineElement.innerHTML = state.highlightedLines[i];
+    } else {
+      lineElement.textContent = line;
+    }
+    fragment.appendChild(lineElement);
     const measured = line.replace(/\t/g, "        ");
-    if (measureContext && measureContext.measureText(measured).width > availableWidth) {
+    if (
+      wrapCheckbox.checked &&
+      measureContext &&
+      measureContext.measureText(measured).width > availableWidth
+    ) {
       const marker = document.createElement("span");
       marker.className = "wrap-marker";
       marker.setAttribute("aria-hidden", "true");
@@ -83,6 +98,61 @@ function renderViewerText() {
   }
   pre.replaceChildren(fragment);
   pre.scrollTop = scrollTop;
+}
+
+function syntaxExtensionForPath(path) {
+  const name = path.split(/[\\/]/).pop() || "";
+  const dot = name.lastIndexOf(".");
+  const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+  const aliases = { mjs: "js", cjs: "js", htm: "html", yml: "yaml", markdown: "md", mdown: "md" };
+  return aliases[ext] || ext;
+}
+
+async function highlightCodeText(state) {
+  const sourceText = state.text;
+  if (sourceText.length > 2 * 1024 * 1024) {
+    state.syntaxExtension = null;
+    state.highlightedText = null;
+    hint.textContent = t("view.syntaxLimit");
+    renderViewerText();
+    return;
+  }
+  const theme = currentSyntaxTheme();
+  const requestId = (state.highlightRequestId || 0) + 1;
+  state.highlightRequestId = requestId;
+  try {
+    const lines = await invoke("highlight_code_text", {
+      text: sourceText,
+      extension: state.syntaxExtension,
+      dark: theme === "dark",
+    });
+    if (
+      viewState !== state ||
+      state.text !== sourceText ||
+      state.highlightRequestId !== requestId ||
+      currentSyntaxTheme() !== theme
+    ) {
+      return;
+    }
+    if (lines === null) {
+      state.syntaxExtension = null;
+      state.highlightedText = sourceText;
+      state.highlightedTheme = theme;
+      state.highlightedLines = null;
+      renderViewerText();
+      return;
+    }
+    state.highlightedText = sourceText;
+    state.highlightedTheme = theme;
+    state.highlightedLines = lines;
+    renderViewerText();
+  } catch (err) {
+    if (viewState === state && state.text === sourceText) {
+      state.syntaxExtension = null;
+      hint.textContent = String(err);
+      renderViewerText();
+    }
+  }
 }
 
 async function loadFile(path) {
@@ -126,9 +196,20 @@ async function loadFile(path) {
     const fileSize = info ? info.size : 0;
     const firstChunk = await invoke("read_file_chunk", { path, offset: 0, limit: VIEW_CHUNK });
     if (requestId !== loadId) return;
-    viewState = { path, fileSize, loaded: firstChunk.length, text: firstChunk };
+    const syntaxExtension = syntaxExtensionForPath(path);
+    viewState = {
+      path,
+      fileSize,
+      loaded: firstChunk.length,
+      text: firstChunk,
+      syntaxExtension,
+      highlightedText: null,
+      highlightedTheme: null,
+      highlightedLines: null,
+    };
     pre.classList.toggle("word-wrap", wrapCheckbox.checked);
     renderViewerText();
+    highlightCodeText(viewState);
     pre.focus();
   } catch (err) {
     if (requestId !== loadId) return;
@@ -155,6 +236,7 @@ pre.addEventListener("scroll", async () => {
       state.text += chunk;
       state.loaded += chunk.length;
       renderViewerText();
+      if (state.syntaxExtension !== null) highlightCodeText(state);
     }
   } catch (err) {
     if (viewState === state) hint.textContent = String(err);

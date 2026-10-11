@@ -24,8 +24,9 @@ themeable UI.
   the active panel to it.
 - **Favorites** — favorite folders (Ctrl+D) and favorite applications (Ctrl+S).
 - **Diff & edit** — F2 compares the selected files (external or terminal diff
-  command, configurable), F3 text/image viewer, F4 opens files in the default or a
-  custom editor (supports `%1`/`%2` placeholders and environment variables).
+  command, configurable), F3 text/image viewer with syntax highlighting for
+  Syntect-supported formats (including TOML; files up to 2 MiB), F4 opens files in the default or a custom editor
+  (supports `%1`/`%2` placeholders and environment variables).
 - **Permissions** — F10 edits POSIX read/write/execute bits for owner, group
   and others on Linux/macOS, and read-only/archive/system/hidden attributes on
   Windows.

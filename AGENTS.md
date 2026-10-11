@@ -13,7 +13,7 @@
   - `settings.html`, `settings.js`, `settings.css` — settings window (theme/font/font-size/diff/edit/show hidden)
   - `help.html`, `help.js`, `help.css` — help/about window (help text + license tabs)
   - `search.html`, `search.js`, `search.css` — file search window (glob/regex + content search)
-  - `view.html`, `view.js`, `view.css` — file viewer window (F3; lazy text chunks via `read_file_chunk`, native image display for JPEG/PNG/GIF/WebP/BMP)
+  - `view.html`, `view.js`, `view.css` — file viewer window (F3; lazy text chunks via `read_file_chunk`, native image display for JPEG/PNG/GIF/WebP/BMP, syntect highlighting for supported formats up to 2 MiB)
   - `info.html`, `info.js`, `info.css` — file info window (F12; `path_info` rendered as a table)
   - `permissions.html`, `permissions.js`, `permissions.css` — POSIX permissions window (F10; owner/group/others rwx)
   - `common.css` — shared styles: themes, base, scrollbars, form widgets (`.opt`, `.row`, `.hint`, `select`, `input[type=text]`, `hr`), window chrome (`.win-header`, `.win-title`, `.win-close`, `.win-body`)
