@@ -30,6 +30,16 @@
   margin: 0;
 }
 
+.windows-attributes[hidden] {
+  display: none;
+}
+
+.windows-attributes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .permissions-actions {
   display: flex;
   justify-content: flex-end;

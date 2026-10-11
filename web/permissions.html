@@ -22,7 +22,7 @@
     </header>
     <main class="win-body permissions-body">
       <div class="permission-path" id="p-path"></div>
-      <table class="permission-grid">
+      <table class="permission-grid" id="posix-controls">
         <thead>
           <tr>
             <th></th>
@@ -52,6 +52,12 @@
           </tr>
         </tbody>
       </table>
+      <div class="windows-attributes" id="windows-controls" hidden>
+        <label class="opt"><input type="checkbox" data-attribute="1" /><span data-i18n="permissions.readOnly">Само за четене</span></label>
+        <label class="opt"><input type="checkbox" data-attribute="32" /><span data-i18n="permissions.archive">Архивен</span></label>
+        <label class="opt"><input type="checkbox" data-attribute="4" /><span data-i18n="permissions.system">Системен</span></label>
+        <label class="opt"><input type="checkbox" data-attribute="2" /><span data-i18n="permissions.hidden">Скрит</span></label>
+      </div>
       <div class="hint" id="p-hint" role="status"></div>
       <div class="permissions-actions">
         <button type="button" id="p-apply" class="primary" data-i18n="permissions.apply">Приложи</button>

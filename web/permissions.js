@@ -29,7 +29,10 @@ initAppearance().catch(() => {});
 const pathEl = document.querySelector("#p-path");
 const hintEl = document.querySelector("#p-hint");
 const applyButton = document.querySelector("#p-apply");
-const checks = Array.from(document.querySelectorAll("[data-bit]"));
+const posixControls = document.querySelector("#posix-controls");
+const windowsControls = document.querySelector("#windows-controls");
+const posixChecks = Array.from(document.querySelectorAll("[data-bit]"));
+const windowsChecks = Array.from(document.querySelectorAll("[data-attribute]"));
 let currentPath = "";
 
 document.querySelector("#btn-close").addEventListener("mousedown", () => {
@@ -49,7 +52,9 @@ async function loadPermissions(path) {
   pathEl.textContent = path;
   hintEl.textContent = "";
   applyButton.disabled = true;
-  checks.forEach((check) => {
+  posixControls.hidden = true;
+  windowsControls.hidden = true;
+  [...posixChecks, ...windowsChecks].forEach((check) => {
     check.checked = false;
     check.disabled = true;
   });
@@ -60,9 +65,12 @@ async function loadPermissions(path) {
       hintEl.textContent = t("permissions.unsupported");
       return;
     }
-    checks.forEach((check) => {
-      const bit = Number(check.dataset.bit);
-      check.checked = (result.mode & bit) !== 0;
+    const isWindows = result.platform === "windows";
+    const activeChecks = isWindows ? windowsChecks : posixChecks;
+    (isWindows ? windowsControls : posixControls).hidden = false;
+    activeChecks.forEach((check) => {
+      const bit = Number(isWindows ? check.dataset.attribute : check.dataset.bit);
+      check.checked = ((isWindows ? result.attributes : result.mode) & bit) !== 0;
       check.disabled = false;
     });
     applyButton.disabled = false;
@@ -73,13 +81,16 @@ async function loadPermissions(path) {
 
 applyButton.addEventListener("mousedown", async () => {
   if (!currentPath) return;
-  const mode = checks.reduce((value, check) => {
+  const mode = posixChecks.reduce((value, check) => {
     return check.checked ? value | Number(check.dataset.bit) : value;
+  }, 0);
+  const attributes = windowsChecks.reduce((value, check) => {
+    return check.checked ? value | Number(check.dataset.attribute) : value;
   }, 0);
   applyButton.disabled = true;
   hintEl.textContent = "";
   try {
-    await invoke("set_file_permissions", { path: currentPath, mode });
+    await invoke("set_file_permissions", { path: currentPath, mode, attributes });
     hintEl.textContent = t("permissions.saved");
   } catch (err) {
     hintEl.textContent = String(err);

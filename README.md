@@ -26,6 +26,9 @@ themeable UI.
 - **Diff & edit** — F2 compares the selected files (external or terminal diff
   command, configurable), F3 text viewer, F4 opens files in the default or a
   custom editor (supports `%1`/`%2` placeholders and environment variables).
+- **Permissions** — F10 edits POSIX read/write/execute bits for owner, group
+  and others on Linux/macOS, and read-only/archive/system/hidden attributes on
+  Windows.
 - **Settings window** — theme (follow system / light / dark), font, font size,
   show hidden files, fuzzy search, diff and edit commands; window geometry and
   column widths are restored on next start.
@@ -40,12 +43,12 @@ themeable UI.
 | Layer     | Location        | Notes                                                        |
 |-----------|-----------------|--------------------------------------------------------------|
 | Backend   | `src/lib.rs`    | Single Rust file, all Tauri commands, ~1900 lines            |
-| Frontend  | `web/`          | `index.html`/`main.js`/`styles.css` (main window) plus `settings`, `help` and `search` windows, each with its own html/js/css |
+| Frontend  | `web/`          | `index.html`/`main.js`/`styles.css` (main window) plus `settings`, `help`, `search`, `view`, `info` and `permissions` windows, each with its own html/js/css |
 | Shared    | `web/common.css`, `web/appearance.js`, `web/i18n.js` | Themes, form widgets, window chrome; theme/font sync; translations |
 | Config    | `tauri.conf.json`, `capabilities/default.json`, `Cargo.toml` | Window definitions and permissions |
 
-Secondary windows (`settings`, `help`, `search`) are created at runtime via
-`open_settings` / `open_help` / `open_search`, centered on the main window.
+Secondary windows (`settings`, `help`, `search`, `view`, `info`, `permissions`)
+are created at runtime and centered on the main window.
 Closing the main window exits the application (and closes all secondary
 windows); closing a secondary window keeps the app running.
 
