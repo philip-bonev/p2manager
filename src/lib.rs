@@ -717,25 +717,29 @@ fn make_dir(parent: String, name: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn rename_path(path: String, new_name: String) -> Result<String, String> {
-    let new_name = new_name.trim().to_string();
-    if new_name.is_empty() {
-        return Err("Name cannot be empty.".to_string());
-    }
-    if new_name.contains('/') || new_name.contains('\\') {
-        return Err("Name contains invalid characters.".to_string());
-    }
-    let src = PathBuf::from(&path);
-    if !src.exists() {
-        return Err(format!("Does not exist: {}", path));
-    }
-    let parent = src.parent().ok_or_else(|| "Invalid path.".to_string())?;
-    let dest = parent.join(&new_name);
-    if dest.exists() {
-        return Err(format!("\"{}\" already exists.", new_name));
-    }
-    fs::rename(&src, &dest).map_err(|e| format!("Error renaming {}: {}", path, e))?;
-    Ok(dest.to_string_lossy().to_string())
+async fn rename_path(path: String, new_name: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let new_name = new_name.trim().to_string();
+        if new_name.is_empty() {
+            return Err("Name cannot be empty.".to_string());
+        }
+        if new_name.contains('/') || new_name.contains('\\') {
+            return Err("Name contains invalid characters.".to_string());
+        }
+        let src = PathBuf::from(&path);
+        if !src.exists() {
+            return Err(format!("Does not exist: {}", path));
+        }
+        let parent = src.parent().ok_or_else(|| "Invalid path.".to_string())?;
+        let dest = parent.join(&new_name);
+        if dest.exists() {
+            return Err(format!("\"{}\" already exists.", new_name));
+        }
+        fs::rename(&src, &dest).map_err(|e| format!("Error renaming {}: {}", path, e))?;
+        Ok(dest.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|e| format!("Error renaming: {}", e))?
 }
 
 #[tauri::command]
@@ -859,105 +863,119 @@ async fn delete_path_progress(
 }
 
 #[tauri::command]
-fn copy_path(src: String, dst_dir: String) -> Result<String, String> {
-    let src_path = PathBuf::from(&src);
-    let dst_path = PathBuf::from(&dst_dir);
-    if !dst_path.is_dir() {
-        return Err(format!("Not a directory: {}", dst_dir));
-    }
-    let name = src_path
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .ok_or_else(|| "Invalid source path.".to_string())?;
-    if src_path
-        .parent()
-        .map(|p| p == dst_path.as_path())
-        .unwrap_or(false)
-    {
-        return Err("File is already in this folder.".to_string());
-    }
-    if is_descendant(&dst_path, &src_path) {
-        return Err("Cannot copy a folder into itself.".to_string());
-    }
-    let dest = resolve_dest(&dst_path, &name);
-    copy_recursive(&src_path, &dest)?;
-    Ok(dest.to_string_lossy().to_string())
+async fn copy_path(src: String, dst_dir: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let src_path = PathBuf::from(&src);
+        let dst_path = PathBuf::from(&dst_dir);
+        if !dst_path.is_dir() {
+            return Err(format!("Not a directory: {}", dst_dir));
+        }
+        let name = src_path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .ok_or_else(|| "Invalid source path.".to_string())?;
+        if src_path
+            .parent()
+            .map(|p| p == dst_path.as_path())
+            .unwrap_or(false)
+        {
+            return Err("File is already in this folder.".to_string());
+        }
+        if is_descendant(&dst_path, &src_path) {
+            return Err("Cannot copy a folder into itself.".to_string());
+        }
+        let dest = resolve_dest(&dst_path, &name);
+        copy_recursive(&src_path, &dest)?;
+        Ok(dest.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|e| format!("Error copying: {}", e))?
 }
 
 #[tauri::command]
-fn move_path(src: String, dst_dir: String) -> Result<String, String> {
-    let src_path = PathBuf::from(&src);
-    let dst_path = PathBuf::from(&dst_dir);
-    if !dst_path.is_dir() {
-        return Err(format!("Not a directory: {}", dst_dir));
-    }
-    let name = src_path
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .ok_or_else(|| "Invalid source path.".to_string())?;
-    if src_path
-        .parent()
-        .map(|p| p == dst_path.as_path())
-        .unwrap_or(false)
-    {
-        return Err("File is already in this folder.".to_string());
-    }
-    if is_descendant(&dst_path, &src_path) {
-        return Err("Cannot move a folder into itself.".to_string());
-    }
-    let dest = resolve_dest(&dst_path, &name);
-    match fs::rename(&src_path, &dest) {
-        Ok(_) => Ok(dest.to_string_lossy().to_string()),
-        Err(_) => {
-            copy_recursive(&src_path, &dest)?;
-            let meta = fs::metadata(&src_path).map_err(|e| e.to_string())?;
-            let del = if meta.is_dir() {
-                fs::remove_dir_all(&src_path)
-            } else {
-                fs::remove_file(&src_path)
-            };
-            del.map_err(|e| format!("Copied, but source could not be deleted: {}", e))?;
-            Ok(dest.to_string_lossy().to_string())
+async fn move_path(src: String, dst_dir: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let src_path = PathBuf::from(&src);
+        let dst_path = PathBuf::from(&dst_dir);
+        if !dst_path.is_dir() {
+            return Err(format!("Not a directory: {}", dst_dir));
         }
-    }
+        let name = src_path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .ok_or_else(|| "Invalid source path.".to_string())?;
+        if src_path
+            .parent()
+            .map(|p| p == dst_path.as_path())
+            .unwrap_or(false)
+        {
+            return Err("File is already in this folder.".to_string());
+        }
+        if is_descendant(&dst_path, &src_path) {
+            return Err("Cannot move a folder into itself.".to_string());
+        }
+        let dest = resolve_dest(&dst_path, &name);
+        match fs::rename(&src_path, &dest) {
+            Ok(_) => Ok(dest.to_string_lossy().to_string()),
+            Err(_) => {
+                copy_recursive(&src_path, &dest)?;
+                let meta = fs::metadata(&src_path).map_err(|e| e.to_string())?;
+                let del = if meta.is_dir() {
+                    fs::remove_dir_all(&src_path)
+                } else {
+                    fs::remove_file(&src_path)
+                };
+                del.map_err(|e| format!("Copied, but source could not be deleted: {}", e))?;
+                Ok(dest.to_string_lossy().to_string())
+            }
+        }
+    })
+    .await
+    .map_err(|e| format!("Error moving: {}", e))?
 }
 
 #[tauri::command]
-fn link_path(src: String, dst_dir: String, hard: bool) -> Result<String, String> {
-    let src_path = PathBuf::from(&src);
-    let dst_path = PathBuf::from(&dst_dir);
-    if !dst_path.is_dir() {
-        return Err(format!("Not a directory: {}", dst_dir));
-    }
-    let name = src_path
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .ok_or_else(|| "Invalid source path.".to_string())?;
-    let dest = resolve_dest(&dst_path, &name);
+async fn link_path(src: String, dst_dir: String, hard: bool) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let src_path = PathBuf::from(&src);
+        let dst_path = PathBuf::from(&dst_dir);
+        if !dst_path.is_dir() {
+            return Err(format!("Not a directory: {}", dst_dir));
+        }
+        let name = src_path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .ok_or_else(|| "Invalid source path.".to_string())?;
+        let dest = resolve_dest(&dst_path, &name);
 
-    if hard {
-        fs::hard_link(&src_path, &dest)
-            .map_err(|e| format!("Error creating hardlink of {}: {}", src_path.display(), e))?;
-    } else {
-        #[cfg(unix)]
-        {
-            std::os::unix::fs::symlink(&src_path, &dest)
-                .map_err(|e| format!("Error creating symlink of {}: {}", src_path.display(), e))?;
+        if hard {
+            fs::hard_link(&src_path, &dest)
+                .map_err(|e| format!("Error creating hardlink of {}: {}", src_path.display(), e))?;
+        } else {
+            #[cfg(unix)]
+            {
+                std::os::unix::fs::symlink(&src_path, &dest).map_err(|e| {
+                    format!("Error creating symlink of {}: {}", src_path.display(), e)
+                })?;
+            }
+            #[cfg(windows)]
+            {
+                let meta = fs::metadata(&src_path)
+                    .map_err(|e| format!("Error reading {}: {}", src_path.display(), e))?;
+                let result = if meta.is_dir() {
+                    std::os::windows::fs::symlink_dir(&src_path, &dest)
+                } else {
+                    std::os::windows::fs::symlink_file(&src_path, &dest)
+                };
+                result.map_err(|e| {
+                    format!("Error creating symlink of {}: {}", src_path.display(), e)
+                })?;
+            }
         }
-        #[cfg(windows)]
-        {
-            let meta = fs::metadata(&src_path)
-                .map_err(|e| format!("Error reading {}: {}", src_path.display(), e))?;
-            let result = if meta.is_dir() {
-                std::os::windows::fs::symlink_dir(&src_path, &dest)
-            } else {
-                std::os::windows::fs::symlink_file(&src_path, &dest)
-            };
-            result
-                .map_err(|e| format!("Error creating symlink of {}: {}", src_path.display(), e))?;
-        }
-    }
-    Ok(dest.to_string_lossy().to_string())
+        Ok(dest.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|e| format!("Error creating link: {}", e))?
 }
 
 #[tauri::command]
@@ -1038,32 +1056,30 @@ async fn move_path_progress(
         return Err("Cannot move a folder into itself.".to_string());
     }
     let dest = resolve_dest(&dst_path, &name);
-    if fs::rename(&src_path, &dest).is_ok() {
-        return Ok(dest.to_string_lossy().to_string());
-    }
     let cancel = register_cancel(&app, &id);
     let app2 = app.clone();
     let id2 = id.clone();
     let src2 = src_path.clone();
     let dest2 = dest.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
-        copy_recursive_progress(&src2, &dest2, &app2, &id2, &cancel)
+        if fs::rename(&src2, &dest2).is_err() {
+            copy_recursive_progress(&src2, &dest2, &app2, &id2, &cancel)?;
+            let meta = fs::metadata(&src2).map_err(|e| e.to_string())?;
+            let del = if meta.is_dir() {
+                fs::remove_dir_all(&src2)
+            } else {
+                fs::remove_file(&src2)
+            };
+            del.map_err(|e| format!("Copied, but source could not be deleted: {}", e))?;
+        }
+        Ok(())
     })
     .await
     .map_err(|e| format!("Error moving: {}", e))?;
     unregister_cancel(&app, &id);
     unregister_progress(&app, &id);
     match result {
-        Ok(_) => {
-            let meta = fs::metadata(&src_path).map_err(|e| e.to_string())?;
-            let del = if meta.is_dir() {
-                fs::remove_dir_all(&src_path)
-            } else {
-                fs::remove_file(&src_path)
-            };
-            del.map_err(|e| format!("Copied, but source could not be deleted: {}", e))?;
-            Ok(dest.to_string_lossy().to_string())
-        }
+        Ok(_) => Ok(dest.to_string_lossy().to_string()),
         Err(e) => {
             if e == "CANCELLED" {
                 cleanup_partial(&dest, src_path.is_dir());

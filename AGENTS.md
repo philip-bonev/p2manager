@@ -56,6 +56,7 @@ F1 help (opens the help window), F2 diff (compare files), F3 view file, F4 edit,
 
 ## 7. Coding Conventions & Safety
 - **Tauri commands:** return `Result<T, String>` with human-readable errors so the frontend can `alert()`/display them.
+- **fs-heavy Tauri commands MUST be `async`** — wrap fs work in `tauri::async_runtime::spawn_blocking`. Sync commands run on the main thread on macOS (WKWebView IPC) and freeze the whole UI on slow/network filesystems (NFS, autofs, systemd automount). `move_path_progress` tries `fs::rename` first, then falls back to progress-reporting copy+delete (cross-device/EXDEV).
 - **Style:** spaces only, 4 spaces = 1 tab. Match surrounding code; no decorative comments.
 - **WebKit Bug (macOS):** WKWebView can fire spurious `click` events, e.g. when a drag-select ends on a different element. Use `mousedown` for dismiss/tab/single-press UI (overlay backdrops, modal buttons) and avoid relying on `click` for anything near selectable text. Checkboxes use `change`.
 - **No new Rust crates or JS packages** unless explicitly requested.

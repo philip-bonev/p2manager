@@ -635,6 +635,7 @@ async function copyOrMove(op, externalSources) {
   operationBusy = true;
   let poll = null;
   let ctrl = null;
+  let firstError = null;
   try {
   const side = activeSide;
   const s = state[side];
@@ -757,16 +758,11 @@ async function copyOrMove(op, externalSources) {
           hard: !!res.values.hard,
         });
       } else if (op === "move") {
-        try {
-          await invoke("move_path", { src: target.path, dstDir: destPath });
-        } catch (e) {
-          if (String(e).includes("CANCELLED")) break;
-          await invoke("move_path_progress", {
-            src: target.path,
-            dstDir: destPath,
-            id,
-          });
-        }
+        await invoke("move_path_progress", {
+          src: target.path,
+          dstDir: destPath,
+          id,
+        });
       } else {
         await invoke("copy_path_progress", {
           src: target.path,
@@ -776,7 +772,7 @@ async function copyOrMove(op, externalSources) {
       }
     } catch (err) {
       if (String(err).includes("CANCELLED")) break;
-      alertModal(t("err.title"), String(err));
+      firstError = String(err);
       break;
     }
     doneBytes += target.row.entry.size || 0;
@@ -795,6 +791,9 @@ async function copyOrMove(op, externalSources) {
       try { ctrl.close(); } catch {}
     }
     operationBusy = false;
+  }
+  if (firstError) {
+    await alertModal(t("err.title"), firstError);
   }
 }
 
