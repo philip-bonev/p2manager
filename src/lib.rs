@@ -1388,6 +1388,7 @@ async fn set_file_permissions(path: String, mode: u32, attributes: u32) -> Resul
         #[cfg(windows)]
         {
             use std::os::windows::ffi::OsStrExt;
+            use std::os::windows::fs::MetadataExt;
             const FILE_ATTRIBUTE_NORMAL: u32 = 0x80;
             let _ = mode;
             if attributes & !WINDOWS_EDITABLE_ATTRIBUTES != 0 {
@@ -1839,6 +1840,7 @@ fn set_fav_apps(fav_apps: Vec<String>, app: tauri::AppHandle) -> Result<Vec<Stri
     Ok(settings.fav_apps)
 }
 
+#[cfg(unix)]
 fn quote_shell(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
