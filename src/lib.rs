@@ -1661,7 +1661,7 @@ fn open_child_window(app: &tauri::AppHandle, spec: &ChildWindowSpec) -> Result<(
 }
 
 #[tauri::command]
-fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
+async fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
     open_child_window(
         &app,
         &ChildWindowSpec {
@@ -1677,7 +1677,7 @@ fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn open_help(app: tauri::AppHandle) -> Result<(), String> {
+async fn open_help(app: tauri::AppHandle) -> Result<(), String> {
     open_child_window(
         &app,
         &ChildWindowSpec {
@@ -1693,7 +1693,7 @@ fn open_help(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn open_search(app: tauri::AppHandle) -> Result<(), String> {
+async fn open_search(app: tauri::AppHandle) -> Result<(), String> {
     open_child_window(
         &app,
         &ChildWindowSpec {
@@ -1709,7 +1709,7 @@ fn open_search(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn open_view(app: tauri::AppHandle) -> Result<(), String> {
+async fn open_view(app: tauri::AppHandle) -> Result<(), String> {
     open_child_window(
         &app,
         &ChildWindowSpec {
@@ -1725,7 +1725,7 @@ fn open_view(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn open_info(app: tauri::AppHandle) -> Result<(), String> {
+async fn open_info(app: tauri::AppHandle) -> Result<(), String> {
     open_child_window(
         &app,
         &ChildWindowSpec {
@@ -1741,7 +1741,7 @@ fn open_info(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn open_permissions(app: tauri::AppHandle) -> Result<(), String> {
+async fn open_permissions(app: tauri::AppHandle) -> Result<(), String> {
     open_child_window(
         &app,
         &ChildWindowSpec {
