@@ -1206,6 +1206,65 @@ async fn authorize_view_image(
     .map_err(|e| format!("Error opening image: {}", e))?
 }
 
+fn highlight_syntax_text(
+    text: &str,
+    extension: &str,
+    dark: bool,
+) -> Result<Option<Vec<String>>, String> {
+    let syntaxes = SYNTAXES.get_or_init(two_face::syntax::extra_newlines);
+    let themes = SYNTAX_THEMES.get_or_init(ThemeSet::load_defaults);
+    let extension = extension.trim_start_matches('.');
+    let syntax = syntaxes.find_syntax_by_extension(extension).or_else(|| {
+        text.lines()
+            .next()
+            .and_then(|line| syntaxes.find_syntax_by_first_line(line))
+    });
+    let Some(syntax) = syntax else {
+        return Ok(None);
+    };
+    if syntax.name == "Plain Text" {
+        return Ok(None);
+    }
+    let theme_name = if dark {
+        "base16-ocean.dark"
+    } else {
+        "InspiredGitHub"
+    };
+    let theme = themes
+        .themes
+        .get(theme_name)
+        .ok_or_else(|| format!("Syntax theme {} is unavailable.", theme_name))?;
+    let mut highlighter = HighlightLines::new(syntax, theme);
+    let mut result = Vec::new();
+    for line in text.split_inclusive('\n') {
+        let line_with_newline;
+        let line = if line.ends_with('\n') {
+            line
+        } else {
+            line_with_newline = format!("{}\n", line);
+            &line_with_newline
+        };
+        let regions = highlighter
+            .highlight_line(line, syntaxes)
+            .map_err(|e| format!("Syntax highlighting failed: {}", e))?;
+        let html_regions: Vec<_> = regions
+            .into_iter()
+            .filter_map(|(style, token)| {
+                let token = token.strip_suffix('\n').unwrap_or(token);
+                let token = token.strip_suffix('\r').unwrap_or(token);
+                (!token.is_empty()).then_some((style, token))
+            })
+            .collect();
+        let html = styled_line_to_highlighted_html(&html_regions, IncludeBackground::No)
+            .map_err(|e| format!("Could not render highlighted code: {}", e))?;
+        result.push(html);
+    }
+    if text.is_empty() || text.ends_with('\n') {
+        result.push(String::new());
+    }
+    Ok(Some(result))
+}
+
 #[tauri::command]
 async fn highlight_code_text(
     text: String,
@@ -1219,54 +1278,9 @@ async fn highlight_code_text(
     if text.len() > 2 * 1024 * 1024 {
         return Err("Syntax highlighting is limited to 2 MiB.".to_string());
     }
-    tauri::async_runtime::spawn_blocking(move || {
-        let syntaxes = SYNTAXES.get_or_init(two_face::syntax::extra_newlines);
-        let themes = SYNTAX_THEMES.get_or_init(ThemeSet::load_defaults);
-        let extension = extension.trim_start_matches('.');
-        let syntax = syntaxes.find_syntax_by_extension(extension).or_else(|| {
-            text.lines()
-                .next()
-                .and_then(|line| syntaxes.find_syntax_by_first_line(line))
-        });
-        let Some(syntax) = syntax else {
-            return Ok(None);
-        };
-        if syntax.name == "Plain Text" {
-            return Ok(None);
-        }
-        let theme_name = if dark {
-            "base16-ocean.dark"
-        } else {
-            "InspiredGitHub"
-        };
-        let theme = themes
-            .themes
-            .get(theme_name)
-            .ok_or_else(|| format!("Syntax theme {} is unavailable.", theme_name))?;
-        let mut highlighter = HighlightLines::new(syntax, theme);
-        let mut result = Vec::new();
-        for line in text.split_inclusive('\n') {
-            let line_with_newline;
-            let line = if line.ends_with('\n') {
-                line
-            } else {
-                line_with_newline = format!("{}\n", line);
-                &line_with_newline
-            };
-            let regions = highlighter
-                .highlight_line(line, syntaxes)
-                .map_err(|e| format!("Syntax highlighting failed: {}", e))?;
-            let html = styled_line_to_highlighted_html(&regions, IncludeBackground::No)
-                .map_err(|e| format!("Could not render highlighted code: {}", e))?;
-            result.push(html);
-        }
-        if text.is_empty() || text.ends_with('\n') {
-            result.push(String::new());
-        }
-        Ok(Some(result))
-    })
-    .await
-    .map_err(|e| format!("Syntax highlighting failed: {}", e))?
+    tauri::async_runtime::spawn_blocking(move || highlight_syntax_text(&text, &extension, dark))
+        .await
+        .map_err(|e| format!("Syntax highlighting failed: {}", e))?
 }
 
 #[tauri::command]
@@ -2267,6 +2281,8 @@ pub fn run() {
 
 #[cfg(test)]
 mod syntax_highlighting_tests {
+    use super::highlight_syntax_text;
+
     #[test]
     fn bundled_syntaxes_cover_requested_file_formats() {
         let syntaxes = two_face::syntax::extra_newlines();
@@ -2276,5 +2292,18 @@ mod syntax_highlighting_tests {
                 "missing Syntect syntax for .{extension}"
             );
         }
+    }
+
+    #[test]
+    fn highlighted_lines_do_not_include_line_breaks() {
+        let highlighted = highlight_syntax_text("[section]\nkey = 1\n", "toml", true)
+            .unwrap()
+            .unwrap();
+        assert_eq!(highlighted.len(), 3);
+        assert!(
+            highlighted
+                .iter()
+                .all(|line| !line.contains('\n') && !line.contains('\r'))
+        );
     }
 }
