@@ -248,6 +248,16 @@ pre.addEventListener("scroll", async () => {
 new ResizeObserver(() => renderViewerText()).observe(pre);
 
 document.addEventListener("keydown", (ev) => {
+  const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform) || /Mac/.test(navigator.userAgent);
+  if ((isMac ? ev.metaKey : ev.ctrlKey) && ev.key.toLowerCase() === "a" && !pre.hidden) {
+    ev.preventDefault();
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(pre);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return;
+  }
   if (ev.key === "Escape") {
     ev.preventDefault();
     win.close().catch(() => {});
