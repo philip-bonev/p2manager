@@ -220,14 +220,27 @@ function updateCols(side) {
   });
 }
 
-async function loadDir(side, path) {
+async function loadDir(side, path, preserveSelection = false) {
   try {
+    const current = state[side];
+    const selectedRow = preserveSelection && current.rows
+      ? current.rows[current.selected]
+      : null;
+    const selectedName = selectedRow && selectedRow.kind === "item"
+      ? selectedRow.entry.name
+      : null;
     const listing = await invoke("list_dir", { path });
     const s = state[side];
     s.path = listing.path;
     s.parent = listing.parent ?? null;
     s.items = listing.items;
     s.selected = 0;
+    if (selectedName !== null) {
+      const selectedIndex = fullList(side).findIndex(
+        (row) => row.kind === "item" && row.entry.name === selectedName,
+      );
+      if (selectedIndex >= 0) s.selected = selectedIndex;
+    }
     s.marked = new Set();
     s.selAnchor = 0;
     render(side);
@@ -589,8 +602,20 @@ async function goUp(side) {
 }
 
 async function refresh(side) {
-  if (state[side].path) loadDir(side, state[side].path);
+  const path = state[side].path;
+  if (!path) return;
+
+  const samePath = (candidate) => candidate && (
+    candidate === path || candidate.replace(/[\\/]$/, "") === path.replace(/[\\/]$/, "")
+  );
+  const matchingSides = ["left", "right"].filter((candidate) => samePath(state[candidate].path));
+  await Promise.all(matchingSides.map((candidate) => loadDir(candidate, state[candidate].path, true)));
 }
+
+window.addEventListener("focus", () => {
+  refresh("left");
+  refresh("right");
+});
 
 function swapPanels() {
   const tmp = state.left;
