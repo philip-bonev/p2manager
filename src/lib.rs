@@ -1612,7 +1612,40 @@ fn edit_path(path: String) -> Result<(), String> {
 
 #[tauri::command]
 fn quit_app(app: tauri::AppHandle) {
+    save_window_geometry(&app);
     app.exit(0);
+}
+
+fn save_window_geometry(app: &tauri::AppHandle) {
+    let window = match app.get_webview_window("main") {
+        Some(window) => window,
+        None => return,
+    };
+
+    let state = app.state::<AppState>();
+    let geometry = state.geometry.lock().unwrap();
+    let size = window
+        .inner_size()
+        .ok()
+        .map(|size| (size.width, size.height))
+        .or(geometry.size);
+    let position = window
+        .outer_position()
+        .ok()
+        .map(|position| (position.x, position.y))
+        .or(geometry.position);
+    drop(geometry);
+
+    let mut settings = load_settings();
+    if let Some((width, height)) = size {
+        settings.width = Some(width);
+        settings.height = Some(height);
+    }
+    if let Some((x, y)) = position {
+        settings.x = Some(x);
+        settings.y = Some(y);
+    }
+    let _ = save_settings(&settings);
 }
 
 struct ChildWindowSpec {
@@ -2265,18 +2298,7 @@ pub fn run() {
                     api.prevent_exit();
                     return;
                 }
-                let state = app.state::<AppState>();
-                let geo = state.geometry.lock().unwrap();
-                let mut settings = load_settings();
-                if let Some((w, h)) = geo.size {
-                    settings.width = Some(w);
-                    settings.height = Some(h);
-                }
-                if let Some((x, y)) = geo.position {
-                    settings.x = Some(x);
-                    settings.y = Some(y);
-                }
-                let _ = save_settings(&settings);
+                save_window_geometry(app);
             }
         });
 }
