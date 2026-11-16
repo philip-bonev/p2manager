@@ -1550,7 +1550,15 @@ fn open_path(path: String) -> Result<(), String> {
         }
 
         #[cfg(target_os = "macos")]
-        let result = std::process::Command::new("open").arg(&path).spawn();
+        let result = {
+            let mut cmd = std::process::Command::new("open");
+            // macOS 27 does not deliver the document to an already running
+            // application, so files are always opened in a new instance.
+            if !p.is_dir() {
+                cmd.arg("-n");
+            }
+            cmd.arg(&path).spawn()
+        };
 
         #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
         let result = std::process::Command::new("xdg-open").arg(&path).spawn();
