@@ -7,7 +7,19 @@
 
 ## 2. Tech Stack & Architecture
 - **Framework:** Tauri v2 (Rust backend + WebView frontend). Rust edition 2024.
-- **Backend:** `/src/lib.rs` (single file, ~1900 lines). All Tauri commands live here.
+- **Backend:** split into logical modules under `/src`; `src/lib.rs` only declares the modules and wires Tauri (`run()`: builder, state, window events, `generate_handler!`). Tauri commands are `pub(crate)` so they can be registered as `module::command`.
+  - `state.rs` — `AppState` (window geometry, cancel flags, progress map) + `WindowGeometry`
+  - `settings.rs` — `AppSettings`/`ColumnWidths`, load/save to `~/.p2manager/config.json`, all `get_*/set_*` preference commands
+  - `paths.rs` — home directory helpers, `expand_env`
+  - `files.rs` — `FileEntry`/`DirListing`, entry metadata helpers, `list_dir`, `make_dir`, `rename_path`, `delete_path`
+  - `search.rs` — glob/regex matcher builders + recursive `search_files`
+  - `transfer.rs` — copy/move/link, recursive copy & delete with progress/cancellation
+  - `viewer.rs` — text chunks, image scope authorization, syntect highlighting (+ tests)
+  - `info.rs` — `path_info`
+  - `permissions.rs` — POSIX mode / Windows attributes (incl. `SetFileAttributesW` FFI)
+  - `windows.rs` — secondary window creation/centering, geometry save, `quit_app`
+  - `launch.rs` — `open_path`, `edit_path`, external diff/editor/command launching, terminal helpers
+  - `about.rs` — app version/about info
 - **Frontend files in `/web`:**
   - `index.html`, `main.js`, `styles.css` — main window (dual-panel file manager)
   - `settings.html`, `settings.js`, `settings.css` — settings window (theme/font/font-size/diff/edit/show hidden)
@@ -34,7 +46,7 @@
 - **Permissions window events:** main stores `pendingPermissionsPath`, opens/focuses `permissions`, and emits `permissions-open` with `{ path }`; the window emits `permissions-window-ready` on load so the main window can resend the path for first-open timing. Permission editing uses POSIX rwx bits on Unix and read-only/archive/system/hidden attributes on Windows.
 - **Tauri v2 API notes:** `.run(closure)` is on `App` (use `.build(context).expect(...).run(...)`); `RunEvent::ExitRequested{code, api}`; `WindowEvent::Resized(PhysicalSize<u32>)` / `Moved(PhysicalPosition<i32>)`. `WebviewWindowBuilder::inner_size/position` take logical f64 values — for exact physical placement use `window.set_position(PhysicalPosition)` after build.
 
-## 4. Backend Commands (in `src/lib.rs`)
+## 4. Backend Commands (registered in `src/lib.rs`, implemented per module)
 `list_dir`, `home_dir`, `make_dir`, `rename_path`, `delete_path`, `delete_path_progress` (async with progress), `copy_path`, `move_path`, `link_path` (hard/soft link), `read_text_file`, `read_file_chunk`, `path_info`, `get_file_permissions`, `set_file_permissions` (POSIX rwx bits on Unix, read-only/archive/system/hidden attributes on Windows; async), `open_path`, `edit_path` (default editor: macOS `open -e`, Linux `$EDITOR`/`xdg-open`, Windows `ShellExecuteW` verb `"edit"`), `quit_app`, `get_appearance`, `set_theme`, `set_font`, `set_font_size`, `set_diff_command`, `set_diff_in_terminal`, `set_edit_command`, `set_edit_in_terminal`, `set_show_hidden`, `set_fuzzy_search`, `set_column_widths`, `get_favorites`, `set_favorites`, `get_fav_apps`, `set_fav_apps`, `open_settings`, `open_help`, `open_search`, `open_view`, `open_info`, `open_permissions` (open/center secondary windows), `search_files` (async, glob/regex, exclusions, recursive, content search), `copy_path_progress` / `move_path_progress` (async with per-file + overall progress), `get_copy_progress` (returns `Option<serde_json::Value>`), `cancel_copy`, `run_diff`, `run_edit`, `run_command`, `get_app_version`, `get_about_info`, `expand_env` (expands `%VAR%` on Windows, `$VAR`/`${VAR}` on Unix).
 - `AppState.progress` is `HashMap<String, serde_json::Value>` — supports both `CopyProgress` and `DeleteProgress` structs.
 
