@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSNetworkVolumesUsageDescription</key>
+    <string>p2manager е файлов мениджър и се нуждае от достъп до мрежови томове (NFS/SMB), за да показва и управлява файловете на тях.</string>
+    <key>NSRemovableVolumesUsageDescription</key>
+    <string>p2manager е файлов мениджър и се нуждае от достъп до външни дискове, за да показва и управлява файловете на тях.</string>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>p2manager е файлов мениджър и се нуждае от достъп до Desktop, за да показва и управлява файловете там.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>p2manager е файлов мениджър и се нуждае от достъп до Documents, за да показва и управлява файловете там.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>p2manager е файлов мениджър и се нуждае от достъп до Downloads, за да показва и управлява файловете там.</string>
+</dict>
+</plist>
